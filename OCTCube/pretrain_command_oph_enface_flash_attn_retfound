@@ -1,0 +1,43 @@
+# Copyright (c) Zixuan Liu et al, OCTCubeM group
+# All rights reserved.
+
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
+# Revised by Zixuan Zucks Liu @University of Washington
+
+
+
+prefix=YOUR_PREFIX
+
+batch_size=64
+input_size=384
+blr=2.5e-3
+
+epoch_num=100
+
+YOUR_OUTPUT_DIR=YOUR_OUTPUT_DIR
+OUTPUTDIR=${HOME}/${prefix}/${YOUR_OUTPUT_DIR}
+SPLIT_PATH=${HOME}/${prefix}/OCTCubeM/assets/Oph_cls_task/scr_train_val_test_split_622/
+ngpus=8
+
+# NOTE: If you want to use your own data (OCT) to train the model, please disable --keramany_only and modify the PatientDataset.py to make it compatible with your data.
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc_per_node=${ngpus} --master_port=25680 main_pretrain_oph_new_enface.py \
+    --split_path ${SPLIT_PATH} \
+    --batch_size ${batch_size} \
+    --world_size ${ngpus} \
+    --model mae_vit_large_patch16 \
+    --warmup_epochs 1 \
+    --input_size ${input_size} \
+    --mask_ratio 0.75 \
+    --epochs ${epoch_num} \
+    --blr=${blr} \
+    --weight_decay 0.05 \
+    --seed 0 \
+    --log_dir ./logs_pt/ \
+    --output_dir ${OUTPUTDIR} \
+    --resume ${HOME}/${prefix}/OCTCubeM/ckpt/RETFound_cfp_weights.pth \
+    --resume_type retfound_2_flash_attn_2d \
+    --use_flash_attn \
+    --kermany_data_dir ${HOME}/${prefix}/OCTCubeM/assets/ext_oph_datasets/Kermany/CellData/OCT/ \
+    --kermany_only \

@@ -1,0 +1,23 @@
+--find-links https://download.pytorch.org/whl/torch_stable.html
+torch
+torchvision
+torchaudio
+opencv-python
+pandas
+Pillow
+protobuf
+pycm
+pydicom
+scikit-image
+scikit-learn
+scipy
+tensorboard
+tensorboard-data-server
+tensorboard-plugin-wit
+timm
+tqdm
+flash-attn
+simplejson
+iopath
+monai
+

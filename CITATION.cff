@@ -1,0 +1,31 @@
+cff-version: 1.1.0
+message: If you use this software, please cite it as below.
+authors:
+  - family-names: Zixuan
+    given-names: Liu
+  - family-names: Hanwen
+    given-names: Xu
+  - family-names: Addie
+    given-names: Woicik
+  - family-names: Linda G.
+    given-names: Shapiro
+  - family-names: Marian
+    given-names: Blazes
+  - family-names: Yue
+    given-names: Wu
+  - family-names: Verena
+    given-names: Steffen
+  - family-names: Catherine
+    given-names: Cukras
+  - family-names: Cecilis S.
+    given-names: Lee
+  - family-names: Miao
+    given-names: Zhang
+  - family-names: Aaron Y.
+    given-names: Lee
+  - family-names: Sheng
+    given-names: Wang
+title: OCTCubeM
+version: v0.1
+doi: https://arxiv.org/abs/2408.11227
+date-released: 2025-02-13

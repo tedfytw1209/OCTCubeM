@@ -1,0 +1,112 @@
+# Copyright (c) Zixuan Liu et al, OCTCubeM group
+# All rights reserved.
+
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
+# Revised by Zixuan Zucks Liu @University of Washington
+
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+# Partly revised by YZ @UCL&Moorfields
+# --------------------------------------------------------
+
+from functools import partial
+
+import re
+import sys
+import torch
+import torch.nn as nn
+
+import timm.models.vision_transformer
+# from models_vit_flash_attn import VisionTransformer as VisionTransformer2DCenterHead
+try:
+    # Case 1: Running from OCTCubeM/
+    from OCTCube.models_vit_flash_attn import VisionTransformer as VisionTransformer2DCenterHead
+except ModuleNotFoundError:
+    try:
+        # Case 2: Running from OCTCube/
+        from .models_vit_flash_attn import VisionTransformer as VisionTransformer2DCenterHead
+    except ImportError:
+        # Case 3: Running as a standalone script
+        sys.path.append('../')  # Add OCTCubeM/ to path
+        from OCTCube.models_vit_flash_attn import VisionTransformer as VisionTransformer2DCenterHead
+from timm.layers import to_2tuple
+from typing import Callable, Optional, Sequence
+from models_slivit_head import SLIViT
+
+class VisionTransformerWith3DPoolingHead(VisionTransformer2DCenterHead):
+    def __init__(self, img_size=256, num_classes=400, embed_dim=768, depth=12, patch_size=16, in_chans=3, global_pool=False, use_flash_attn=True, num_heads=12, mlp_ratio=4.0, no_qkv_bias=False,qk_scale=None, drop_rate=0.0, attn_drop_rate=0.0, drop_path_rate=0.0, norm_layer=nn.LayerNorm, dropout=0.5, cls_embed=True, **kwargs):
+
+        super(VisionTransformerWith3DPoolingHead, self).__init__(img_size=img_size, num_classes=num_classes, embed_dim=embed_dim, depth=depth, patch_size=patch_size, in_chans=in_chans, num_heads=num_heads, mlp_ratio=mlp_ratio, no_qkv_bias=no_qkv_bias, qk_scale=qk_scale, drop_date=drop_rate, attn_drop_rate=attn_drop_rate, norm_layer=norm_layer, drop_path_rate=drop_path_rate, drop_rate=drop_rate, cls_embed=cls_embed, dropout=dropout, use_flash_attn=use_flash_attn, global_pool=global_pool, **kwargs)
+
+
+        self.SLIViT_head = SLIViT(num_of_patches=self.input_size[0], vit_dim=256, vit_depth=slivit_depth_num, heads=20, mlp_dim=512,
+                 dropout=0., emb_dropout=0., patch_height=embed_dim,
+                 patch_width=self.input_size[1] * self.input_size[2], rnd_pos_emb=False, num_classes=num_classes, dim_head=64)
+
+
+    def forward_features(self, x: torch.Tensor, hidden_states=False) -> torch.Tensor:
+        B, N, C, H, W = x.shape
+
+        x = x.view(B * N, C, H, W)
+
+        # Process the entire batch of slices through the transformer
+        x = super().forward_features(x, hidden_states=hidden_states)
+
+        # Reshape back to separate the batch and slices dimensions, keeping the token dimension
+        x = x.view(B, N, -1)
+
+        # 3D average pooling
+        x = x.mean(dim=1)  # Mean pooling over the slices dimension
+
+        # Pass through a fully connected layer and normalize
+        x = self.fc_aggregate_cls(x)
+        x = self.aggregate_cls_norm(x)
+
+        return x
+
+    def lock(self, unlocked_groups=0, freeze_bn_stats=False):
+        for param in self.parameters():
+            param.requires_grad = False
+
+        if unlocked_groups != 0:
+            groups = [
+                [
+                    self.patch_embed,
+                    self.cls_token if hasattr(self, "cls_token") else None,
+                    self.pos_embed,
+                ],
+                *self.blocks[:-1],
+                [
+                    self.blocks[-1],
+                    self.fc_norm if hasattr(self, "fc_norm") else self.norm,
+                ],
+                [
+                    self.fc_aggregate_cls,
+                    self.aggregate_cls_norm,
+                    self.head,
+                ]
+
+            ]
+            print(f"Unlocking {unlocked_groups} groups, len(groups)={len(groups)}")
+            def _unlock(x):
+                if isinstance(x, Sequence):
+                    for g in x:
+                        _unlock(g)
+                else:
+                    if isinstance(x, torch.nn.Parameter):
+                        x.requires_grad = True
+                    else:
+                        for p in x.parameters():
+                            p.requires_grad = True
+
+            _unlock(groups[-unlocked_groups:])
+
+
+def flash_attn_vit_large_patch16_3DSliceHead(**kwargs):
+    model = VisionTransformerWith3DPoolingHead(
+        patch_size=16, embed_dim=1024, depth=24, num_heads=16, mlp_ratio=4, qkv_bias=True,
+        norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+    return model
+
