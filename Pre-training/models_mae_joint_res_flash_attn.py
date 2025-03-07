@@ -70,6 +70,7 @@ class MaskedAutoencoderViT(nn.Module):
         self.t_pred_patch_size = t_patch_size * pred_t_dim // num_frames
         if isinstance(input_size, int):
             input_size = (input_size, input_size)
+        print('input_size:', input_size, 'patch_size:', patch_size, 'in_chans:', in_chans, 'embed_dim:', embed_dim, 'num_frames:', num_frames, 't_patch_size:', t_patch_size)
 
         self.patch_embed = patch_embed(
             input_size,
@@ -82,6 +83,7 @@ class MaskedAutoencoderViT(nn.Module):
         num_patches = self.patch_embed.num_patches
         input_size = self.patch_embed.input_size
         self.input_size = input_size
+        print('num_patches:', num_patches, 'input_size:', input_size, self.patch_embed.input_size, 'num_patches:', num_patches)
 
 
         # self.enable_high_res_patch_embed = enable_high_res_patch_embed
@@ -616,7 +618,8 @@ class MaskedAutoencoderViT(nn.Module):
         """
         T = imgs.shape[2]
         high_res = False
-        H = W = imgs.shape[-1]
+        H = imgs.shape[-2]
+        W = imgs.shape[-1]
 
         if H == self.high_res_input_size[1] * self.high_res_patch_embed.patch_size[0]:
             high_res = True
@@ -647,7 +650,8 @@ class MaskedAutoencoderViT(nn.Module):
         loss = loss.mean(dim=-1)  # [N, L], mean loss per patch
         mask = mask.view(loss.shape)
 
-        input_size = self.patch_embed.input_size
+        # input_size = self.patch_embed.img_size
+        input_size = (T, H, W)
         resized_loss = loss.view(-1, T // self.patch_embed.t_patch_size, input_size[1] // self.patch_embed.patch_size[0], input_size[2] // self.patch_embed.patch_size[1])
 
         # resize mask to [N, T, H, W]

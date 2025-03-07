@@ -13,7 +13,14 @@
 
 
 OUTPUTDIR=YOUR_OUTPUT_DIR
-kermany_data_dir=YOUR_KERMANY_DATA_DIR
+prefix=YOUR_PREFIX
+DATA_PATH=$HOME/$prefix/Ophthal/
+SPLIT_PATH=$HOME/$prefix/OCTCubeM/assets/Oph_cls_task/scr_train_val_test_split_622/
+kermany_data_dir=$HOME/$prefix/OCTCubeM/assets/ext_oph_datasets/Kermany/CellData/OCT/
+patient_id_list_dir=$HOME/$prefix/multi_label_expr_all/
+metadata_dir=$HOME/$prefix/OCTCubeM/assets/Oph_cls_task/
+pretrain_type=training_latest
+
 BSZ=1
 INPUTSIZE=256
 ACCUMSTEPS=1
@@ -22,12 +29,16 @@ BLR=1.6e-3
 RATIO=0.9
 resume_epoch=9
 
-SCHEDULER="bsz-$BSZ-inputsize-$INPUTSIZE-aacumsteps$ACCUMSTEPS-ep-$EPOCHS-lr-$BLR-test-512-flash-attn"
+SCHEDULER="bsz-$BSZ-inputsize-$INPUTSIZE-aacumsteps$ACCUMSTEPS-ep-$EPOCHS-lr-$BLR-2d512-flash-attn-$pretrain_type"
 OUTPUTDIR=$OUTPUTDIR/$SCHEDULER
 
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 --master_port=25680 run_pretrain_oph_joint_test_512_flash_attn.py \
-        --kermany_data_dir $kermany_data_dir \
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 --master_port=25680 run_pretrain_oph_joint_2d512_flash_attn.py \
+        --data_path $DATA_PATH \
         --output_dir $OUTPUTDIR \
+        --split_path $SPLIT_PATH \
+        --kermany_data_dir $kermany_data_dir \
+        --patient_id_list_dir $patient_id_list_dir \
+        --metadata_dir $metadata_dir \
         --log_dir $OUTPUTDIR/log_dir \
         --batch_size $BSZ \
         --accum_iter $ACCUMSTEPS \
@@ -42,7 +53,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 --master_port=25680 run
         --input_size $INPUTSIZE \
         --warmup_epochs 1 \
         --resume ${OUTPUTDIR}/checkpoint-0000${resume_epoch}.pth \
-        --resume_type training_latest \
+        --resume_type ${pretrain_type} \
         --model flash_attn_mae_vit_large_patch16 \
         --batch_size_2d 64 \
         --mask_ratio_2d_min 0.75 \

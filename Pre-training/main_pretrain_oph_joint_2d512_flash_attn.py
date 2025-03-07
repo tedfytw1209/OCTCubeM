@@ -89,9 +89,10 @@ def get_args_parser():
     parser.add_argument('--split_path', default=home_directory + split_path, type=str, help='split path storing the train/val/test split of patient files')
     parser.add_argument('--data_path', default=home_directory + '/Ophthal/', type=str, help='dataset path')
     parser.add_argument('--patient_id_list_dir', default='multi_label_expr_all_0319/', type=str, help='patient id list dir')
+    parser.add_argument('--metadata_dir', default='Oph_cls_task/', type=str, help='metadata dir')
     parser.add_argument('--eval_only', action='store_true', help='perform evaluation only')
     parser.add_argument('--eval_only_epoch', default=0, type=int, help='perform evaluation only epoch')
-    parser.add_argument('--resume_type', default='retfound', type=str, choices=['training_latest', 'training_new', 'retfound', 'training_continue_reset_optim', 'retfound_2_flash_attn', 'imagenet_2_flash_attn'] , help='resume type')
+    parser.add_argument('--resume_type', default='retfound', type=str, choices=['training_latest', 'training_new', 'retfound', 'training_continue_reset_optim', 'retfound_2_flash_attn', 'imagenet_2_flash_attn', 'imagenet_ft_2_flash_attn'] , help='resume type')
     parser.add_argument("--batch_size_2d",default=16, type=int, help="2d Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus",)
     parser.add_argument("--mask_ratio_2d_min", default=0.75, type=float, help="Masking ratio (percentage of removed patches).",)
     parser.add_argument("--mask_ratio_2d_max", default=0.85, type=float, help="Masking ratio (percentage of removed patches).",)
@@ -314,8 +315,8 @@ def main(args):
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
             ])
-    data_dir = home_directory + '/Ophthal/'
-    dataset_train_2d = PatientDatasetCenter2D_inhouse_pretrain(root_dir=data_dir, task_mode='multi_label', disease='AMD', disease_name_list=None, metadata_fname=None, dataset_mode='frame', transform=transform_2d_train, iterate_mode='visit', downsample_width=True, patient_id_list_dir='multi_label_expr_all_0319/', enable_spl=True, mask_transform=transform_2d_train, return_mask=False)
+
+    dataset_train_2d = PatientDatasetCenter2D_inhouse_pretrain(root_dir=args.data_path, task_mode='multi_label', disease='AMD', disease_name_list=None, metadata_fname=None, dataset_mode='frame', transform=transform_2d_train, iterate_mode='visit', downsample_width=True, patient_id_list_dir=args.patient_id_list_dir, enable_spl=True, mask_transform=transform_2d_train, return_mask=False, metadata_dir=args.metadata_dir)
 
     test_pat_id = load_patient_list(args.split_path, split='test', name_suffix='_pat_list.txt')
     included_patient = list(dataset_train_2d.patients.keys())
@@ -332,7 +333,7 @@ def main(args):
     # 3d dataset
     transform_train, transform_eval = create_3d_transforms(**vars(args))
 
-    dataset = PatientDataset3D_inhouse(root_dir=args.data_path, task_mode='multi_label', disease='AMD', disease_name_list=None, metadata_fname=None, dataset_mode='frame', mode='gray', transform=None, iterate_mode='visit', downsample_width=True, patient_id_list_dir=args.patient_id_list_dir, pad_to_num_frames=True, padding_num_frames=args.num_frames, transform_type='monai_3D', return_img_w_patient_and_visit_name=True, return_data_dict=True)
+    dataset = PatientDataset3D_inhouse(root_dir=args.data_path, task_mode='multi_label', disease='AMD', disease_name_list=None, metadata_fname=None, dataset_mode='frame', mode='gray', transform=None, iterate_mode='visit', downsample_width=True, patient_id_list_dir=args.patient_id_list_dir, pad_to_num_frames=True, padding_num_frames=args.num_frames, transform_type='monai_3D', return_img_w_patient_and_visit_name=True, return_data_dict=True, metadata_dir=args.metadata_dir)
 
     train_pat_id = load_patient_list(args.split_path, split='train', name_suffix='_pat_list.txt')
     val_pat_id = load_patient_list(args.split_path, split='val', name_suffix='_pat_list.txt')
@@ -453,7 +454,7 @@ def main(args):
         betas=beta,
     )
     loss_scaler = NativeScaler(fp32=args.fp32)
-    if args.resume or args.init_ckpt or args.resume_type == 'imagenet_2_flash_attn':
+    if args.resume or args.init_ckpt or args.resume_type == 'imagenet_2_flash_attn' or args.resume_type == 'imagenet_ft_2_flash_attn':
         print("Resuming from checkpoint")
         if args.resume_type == 'training_latest':
             print('training latest')
@@ -520,6 +521,16 @@ def main(args):
                 encoder_only=True,
                 preload_model=imagenet_model,
             )
+
+        elif args.resume_type == 'imagenet_ft_2_flash_attn':
+            imagenet_model = timm.create_model('vit_large_patch16_224.augreg_in21k_ft_in1k', pretrained=True)
+            misc.load_model_retfound_flash_attn(
+                args=args,
+                model_without_ddp=model_without_ddp,
+                encoder_only=True,
+                preload_model=imagenet_model,
+            )
+
 
         elif args.resume_type == 'training_continue_reset_optim':
             misc.load_model(

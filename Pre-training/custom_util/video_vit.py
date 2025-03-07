@@ -52,8 +52,9 @@ class PatchEmbed(nn.Module):
             img_size[1] // patch_size[1],
         )
         print(
-            f"img_size {img_size} patch_size {patch_size} frames {frames} t_patch_size {t_patch_size}"
+            f"img_size {img_size} patch_size {patch_size} frames {frames} t_patch_size {t_patch_size} num_patches {num_patches} input_size {self.input_size}"
         )
+
         self.img_size = img_size
         self.patch_size = patch_size
 

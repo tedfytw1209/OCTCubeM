@@ -90,7 +90,7 @@ class Inhouse_and_Kermany_Dataset(Dataset):
 
 
 class PatientDatasetCenter2D_inhouse_pretrain(PatientDatasetCenter2D_inhouse):
-    def __init__(self, root_dir, task_mode='multi_label', dataset_mode='frame', transform=None, convert_to_tensor=False, return_patient_id=False, out_frame_idx=False, name_split_char='-', iterate_mode='visit', downsample_width=True, mode='rgb', patient_id_list_dir='multi_cls_expr_10x_0315/', disease='AMD', disease_name_list=None, metadata_fname=None, downsample_normal=False, downsample_normal_factor=10, enable_spl=False, return_mask=False, mask_dir=home_directory + '/all_seg_results_collection/seg_results/', mask_transform=None, **kwargs):
+    def __init__(self, root_dir, task_mode='multi_label', dataset_mode='frame', transform=None, convert_to_tensor=False, return_patient_id=False, out_frame_idx=False, name_split_char='-', iterate_mode='visit', downsample_width=True, mode='rgb', patient_id_list_dir='multi_cls_expr_10x_0315/', disease='AMD', disease_name_list=None, metadata_fname=None, downsample_normal=False, downsample_normal_factor=10, enable_spl=False, return_mask=False, mask_dir=home_directory + '/all_seg_results_collection/seg_results/', mask_transform=None, metadata_dir='Oph_cls_task/', **kwargs):
         """
         Args:
             root_dir (string): Directory with all the images.
@@ -109,7 +109,8 @@ class PatientDatasetCenter2D_inhouse_pretrain(PatientDatasetCenter2D_inhouse):
             mode (str): 'rgb', 'gray'
 
         """
-        super().__init__(root_dir, dataset_mode=dataset_mode, task_mode=task_mode, transform=transform, downsample_width=downsample_width, convert_to_tensor=convert_to_tensor, return_patient_id=return_patient_id, out_frame_idx=out_frame_idx, name_split_char=name_split_char, iterate_mode=iterate_mode, mode=mode, patient_id_list_dir=patient_id_list_dir, **kwargs)
+
+        super().__init__(root_dir, dataset_mode=dataset_mode, task_mode=task_mode, transform=transform, downsample_width=downsample_width, convert_to_tensor=convert_to_tensor, return_patient_id=return_patient_id, out_frame_idx=out_frame_idx, name_split_char=name_split_char, iterate_mode=iterate_mode, mode=mode, patient_id_list_dir=patient_id_list_dir, metadata_dir=metadata_dir, **kwargs)
 
 
         self.all_image_list, self.all_image_dict = self.get_all_image_list_and_dict()

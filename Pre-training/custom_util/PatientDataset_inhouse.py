@@ -48,7 +48,8 @@ def get_file_list_given_patient_and_visit_hash(patient_id, visit_hash, mode='oct
 def create_3d_transforms(input_size, num_frames=64, RandFlipd_prob=0.5, RandRotate90d_prob=0.5, normalize=False, **kwargs):
     if isinstance(input_size, int):
         if input_size == 256:
-            input_size = (256, 384)
+            # input_size = (256, 384)
+            input_size = (256, 256)
         else:
             input_size = (input_size, input_size)
 
@@ -120,7 +121,7 @@ class PatientDataset_and_3DOCT_aggregatedDataset(Dataset):
 
 
 class PatientDatasetCenter2D_inhouse(PatientDatasetCenter2D):
-    def __init__(self, root_dir, task_mode='binary_cls', disease='AMD', disease_name_list=None, metadata_fname=None, dataset_mode='frame', transform=None, convert_to_tensor=False, return_patient_id=False, out_frame_idx=False, name_split_char='-', iterate_mode='visit', downsample_width=True, mode='rgb', patient_id_list_dir='multi_cls_expr_10x_0315/', **kwargs):
+    def __init__(self, root_dir, task_mode='binary_cls', disease='AMD', disease_name_list=None, metadata_fname=None, dataset_mode='frame', transform=None, convert_to_tensor=False, return_patient_id=False, out_frame_idx=False, name_split_char='-', iterate_mode='visit', downsample_width=True, mode='rgb', patient_id_list_dir='multi_cls_expr_10x_0315/', metadata_dir='Oph_cls_task/', **kwargs):
         """
         Args:
             root_dir (string): Directory with all the images.
@@ -146,7 +147,7 @@ class PatientDatasetCenter2D_inhouse(PatientDatasetCenter2D):
         self.downsample_width = downsample_width
         self.dataset_mode = dataset_mode
         self.set_disease_availability()
-        self.set_filepath(patient_id_list_dir=patient_id_list_dir)
+        self.set_filepath(metadata_dir=metadata_dir, patient_id_list_dir=patient_id_list_dir)
         if disease_name_list is None:
             disease_name_list = self.available_disease
         # Task mode can be 'binary_cls', 'multi_cls', 'multi_label'
@@ -190,10 +191,9 @@ class PatientDatasetCenter2D_inhouse(PatientDatasetCenter2D):
             self.class_to_idx = {disease_name: idx for idx, disease_name in enumerate(disease_name_list)}
 
 
-    def set_filepath(self, metadata_dir='Oph_cls_task/', patient_id_list_dir='multi_cls_expr_10x/',
-        root_dir=home_directory+'/OCTCubeM/assets/'):
-        self.metadata_dir = root_dir + metadata_dir
-        self.patient_id_list_dir = root_dir + metadata_dir + patient_id_list_dir
+    def set_filepath(self, metadata_dir=home_directory+'/OCTCubeM/assets/'+'Oph_cls_task/', patient_id_list_dir='multi_cls_expr_10x/'):
+        self.metadata_dir = metadata_dir
+        self.patient_id_list_dir = metadata_dir + patient_id_list_dir
 
     def load_metadata(self, patient_dict_w_metadata_fname='patient_dict_w_metadata_first_visit_from_ir.pkl'):
         self.patient_dict_w_metadata_fname = patient_dict_w_metadata_fname
@@ -358,7 +358,7 @@ class PatientDatasetCenter2D_inhouse(PatientDatasetCenter2D):
 
 class PatientDataset3D_inhouse(PatientDatasetCenter2D_inhouse):
 
-    def __init__(self, root_dir, task_mode='binary_cls', disease='AMD', disease_name_list=None, metadata_fname=None, dataset_mode='frame', transform=None, convert_to_tensor=False, return_patient_id=False, name_split_char='-', iterate_mode='visit', downsample_width=True, mode='gray', patient_id_list_dir='multi_cls_expr_10x_0315/', pad_to_num_frames=False, padding_num_frames=None, transform_type='monai_3D', return_img_w_patient_and_visit_name=False, return_data_dict=False, high_res_transform=None, return_both_res_image=False, high_res_num_frames=None, **kwargs):
+    def __init__(self, root_dir, task_mode='binary_cls', disease='AMD', disease_name_list=None, metadata_fname=None, dataset_mode='frame', transform=None, convert_to_tensor=False, return_patient_id=False, name_split_char='-', iterate_mode='visit', downsample_width=True, mode='gray', patient_id_list_dir='multi_cls_expr_10x_0315/', pad_to_num_frames=False, padding_num_frames=None, transform_type='monai_3D', return_img_w_patient_and_visit_name=False, return_data_dict=False, high_res_transform=None, return_both_res_image=False, high_res_num_frames=None, metadata_dir='Oph_cls_task/', **kwargs):
         """
         Args:
             root_dir (string): Directory with all the images.
@@ -377,7 +377,7 @@ class PatientDataset3D_inhouse(PatientDatasetCenter2D_inhouse):
             mode (str): 'rgb', 'gray'
 
         """
-        super().__init__(root_dir, task_mode=task_mode, disease=disease, disease_name_list=disease_name_list, metadata_fname=metadata_fname, dataset_mode=dataset_mode, transform=transform, convert_to_tensor=convert_to_tensor, return_patient_id=return_patient_id, out_frame_idx=False, name_split_char=name_split_char, iterate_mode=iterate_mode, downsample_width=downsample_width, mode=mode, patient_id_list_dir=patient_id_list_dir, **kwargs)
+        super().__init__(root_dir, task_mode=task_mode, disease=disease, disease_name_list=disease_name_list, metadata_fname=metadata_fname, dataset_mode=dataset_mode, transform=transform, convert_to_tensor=convert_to_tensor, return_patient_id=return_patient_id, out_frame_idx=False, name_split_char=name_split_char, iterate_mode=iterate_mode, downsample_width=downsample_width, mode=mode, patient_id_list_dir=patient_id_list_dir, metadata_dir=metadata_dir, **kwargs)
         self.pad_to_num_frames = pad_to_num_frames
         self.padding_num_frames = padding_num_frames
         self.transform_type = transform_type
