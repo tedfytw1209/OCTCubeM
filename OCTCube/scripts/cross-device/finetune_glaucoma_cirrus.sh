@@ -1,8 +1,9 @@
-prefix=YOUR_PREFIX
-LOG_DIR=$HOME/log_pt/
+ROOT=/blue/ruogu.fang/tienyuchang
+prefix=OCTCubeM
+LOG_DIR=$ROOT/log_pt/
 OUTPUT_DIR=./outputs_ft_st/finetune_glaucoma_3D_fewshot_10folds_correct_visit/
 CUDA_VISIBLE_DEVICES=1 python main_finetune_downstream_glaucoma_correct_visit.py --nb_classes 2 \
-    --data_path $HOME/$prefix/OCTCubeM/assets/ext_oph_datasets/glaucoma_processed/ \
+    --data_path $ROOT/$prefix/OCTCubeM/assets/ext_oph_datasets/glaucoma_processed/ \
     --dataset_mode volume \
     --iterate_mode visit \
     --name_split_char - \
