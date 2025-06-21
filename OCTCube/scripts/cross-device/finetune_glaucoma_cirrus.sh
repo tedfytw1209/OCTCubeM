@@ -1,3 +1,7 @@
+
+module load conda
+conda activate octcube
+
 ROOT=/blue/ruogu.fang
 prefix=tienyuchang
 LOG_DIR=$ROOT/log_pt/
