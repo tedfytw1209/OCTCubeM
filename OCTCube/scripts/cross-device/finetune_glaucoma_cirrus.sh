@@ -1,5 +1,5 @@
-ROOT=/blue/ruogu.fang/tienyuchang
-prefix=OCTCubeM
+ROOT=/blue/ruogu.fang
+prefix=tienyuchang
 LOG_DIR=$ROOT/log_pt/
 OUTPUT_DIR=./outputs_ft_st/finetune_glaucoma_3D_fewshot_10folds_correct_visit/
 CUDA_VISIBLE_DEVICES=1 python main_finetune_downstream_glaucoma_correct_visit.py --nb_classes 2 \
@@ -32,5 +32,5 @@ CUDA_VISIBLE_DEVICES=1 python main_finetune_downstream_glaucoma_correct_visit.py
     --weight_decay 0.05 \
     --drop_path 0.2 \
     --num_workers 10 \
-    --finetune $HOME/$prefix/OCTCubeM/ckpt/OCTCube.pth \
+    --finetune $ROOT/$prefix/OCTCubeM/ckpt/OCTCube.pth \
     --return_bal_acc \
