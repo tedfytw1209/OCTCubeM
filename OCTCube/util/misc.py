@@ -223,7 +223,12 @@ def save_on_master(*args, **kwargs):
 
 
 def init_distributed_mode(args):
-    if args.dist_on_itp:
+    if int(args.rank)==-1 and not args.dist_on_itp: ##!!TMP FIX
+        print('Not using distributed mode')
+        setup_for_distributed(is_master=True)  # hack
+        args.distributed = False
+        return
+    elif args.dist_on_itp:
         args.rank = int(os.environ['OMPI_COMM_WORLD_RANK'])
         args.world_size = int(os.environ['OMPI_COMM_WORLD_SIZE'])
         args.gpu = int(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])
