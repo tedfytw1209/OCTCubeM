@@ -102,7 +102,7 @@ class TransformableSubset(Dataset):
 class PatientDataset3D(Dataset):
     def __init__(self, root_dir, patient_idx_loc, dataset_mode='frame', transform=None, return_patient_id=False,
         convert_to_tensor=False, name_split_char='_', cls_unique=True, iterate_mode='patient', volume_resize=(224, 224), shift_mean_std=False,
-        downsample_width=True, max_frames=None, visit_idx_loc=None, visit_list=None, transform_type='frame_2D', mode='rgb', same_3_frames=False, aireadi_location='All', aireadi_split='train', aireadi_device='All', aireadi_pre_patient_cohort='All', aireadi_normalize_retfound=False, aireadi_abnormal_file_tsv=None, random_shuffle_patient=True, **kwargs):
+        downsample_width=True, max_frames=None, visit_idx_loc=None, visit_list=None, transform_type='frame_2D', mode='rgb', same_3_frames=False, aireadi_location='All', aireadi_split='train', aireadi_device='All', aireadi_pre_patient_cohort='All', aireadi_normalize_retfound=False, aireadi_abnormal_file_tsv=None, random_shuffle_patient=True, get_patients_csv=False, **kwargs):
         """
         Args:
             root_dir (string): Directory with all the images.
@@ -129,25 +129,28 @@ class PatientDataset3D(Dataset):
         self.visit_list = visit_list
 
         self.aireadi_abnormal_file_tsv = aireadi_abnormal_file_tsv
-
         self.random_shuffle_patient = random_shuffle_patient
+        if get_patients_csv:
+            get_patients_func = self._get_patients_from_csv
+        else:       
+            get_patients_func = self._get_patients
 
         if self.dataset_mode == 'frame':
             if self.iterate_mode == 'patient':
-                self.patients, self.class_to_idx = self._get_patients(patient_idx_loc)
+                self.patients, self.class_to_idx = get_patients_func(patient_idx_loc)
                 self.visits_dict = None
                 self.mapping_patient2visit = None
                 self.mapping_visit2patient = None
             elif self.iterate_mode == 'visit':
                 # raise ValueError('iterate_mode cannot be visit for frame dataset')
-                self.patients, self.class_to_idx, self.visits_dict, self.mapping_patient2visit = self._get_patients(patient_idx_loc)
+                self.patients, self.class_to_idx, self.visits_dict, self.mapping_patient2visit = get_patients_func(patient_idx_loc)
                 self.mapping_visit2patient = {visit_idx: patient_id for patient_id, visit_idx_list in self.mapping_patient2visit.items() for visit_idx in visit_idx_list}
         elif self.dataset_mode == 'volume':
-            self.patients, self.class_to_idx, self.visits_dict, self.mapping_patient2visit = self._get_patients(patient_idx_loc)
+            self.patients, self.class_to_idx, self.visits_dict, self.mapping_patient2visit = get_patients_func(patient_idx_loc)
             self.mapping_visit2patient = {visit_idx: patient_id for patient_id, visit_idx_list in self.mapping_patient2visit.items() for visit_idx in visit_idx_list}
         elif self.dataset_mode == 'dicom_aireadi':
             self._load_ai_readi_data()
-            self.used_aireadi_condition_list, self.used_aireadi_filtered_patient_list = self._get_aireadi_setting(split=aireadi_split, device_model_name=aireadi_device, location=aireadi_location, pre_patient_cohort=aireadi_pre_patient_cohort)
+            self.used_aireadi_condition_list, self.used_aireadi_filtered_patient_list = get_patients_func(split=aireadi_split, device_model_name=aireadi_device, location=aireadi_location, pre_patient_cohort=aireadi_pre_patient_cohort)
             _, self.kfold_patient_list = self._get_aireadi_setting(split='all', device_model_name=aireadi_device, location=aireadi_location, pre_patient_cohort=aireadi_pre_patient_cohort)
             self.kfold_patient_list = sorted(self.kfold_patient_list)
             print('kfold_patient_list:', self.kfold_patient_list, len(self.kfold_patient_list))
@@ -158,7 +161,7 @@ class PatientDataset3D(Dataset):
             self.used_aireadi_patient_dict = filter_aireadi_patient_dict(self.patient_all_dict, condition=self.used_aireadi_condition_list, pre_filtered_patient_id_list=self.used_aireadi_filtered_patient_list, abnormal_oct_file_list=self.abnormal_oct_file_list)
             self.used_aireadi_filtered_patient_list = sorted(list(self.used_aireadi_patient_dict.keys()))
 
-            self.patients, self.class_to_idx, self.visits_dict, self.mapping_patient2visit = self._get_patients(0)
+            self.patients, self.class_to_idx, self.visits_dict, self.mapping_patient2visit = get_patients_func(0)
             self.mapping_visit2patient = {visit_idx: patient_id for patient_id, visit_idx_list in self.mapping_patient2visit.items() for visit_idx in visit_idx_list}
 
             self.shift_mean_std = shift_mean_std
@@ -494,6 +497,88 @@ class PatientDataset3D(Dataset):
 
             return patients, class_to_idx, visits_dict, mapping_patient2visit
 
+    def _get_patients_from_csv(self, patient_idx_loc):
+        patients = {}
+        class_names = sorted(self.data_frame['label'].unique())
+        class_to_idx = {cls_name: idx for idx, cls_name in enumerate(class_names)}
+
+        if self.dataset_mode == 'frame':
+            if self.iterate_mode == 'patient':
+                for i, row in self.data_frame.iterrows():
+                    cls_dir = row['label']
+                    patient_id = row['patient_id']
+                    slice_indices = row['slice_indices'].split('-')
+                    #if new patient_id, add to patients
+                    unique_patient_id = f"{cls_dir}_{patient_id}" if self.cls_unique else patient_id
+                    if unique_patient_id not in patients:
+                        patients[unique_patient_id] = {
+                            'class_idx': class_to_idx[cls_dir],
+                            'class': cls_dir,
+                            'frames': []
+                        }
+                    for slice_idx in slice_indices:
+                        img_name = f"{row['oct_imgname']}_{eye}_{slice_idx}.jpg"
+                        img_path = os.path.join(self.root_dir, row['folder'], img_name)
+                        patients[unique_patient_id]['frames'].append(img_path)
+                # Sorting patients by patient_id
+                patients = dict(sorted(patients.items(), key=lambda x: x[0]))
+                if self.random_shuffle_patient:
+                    rng = np.random.default_rng(seed=0)
+                    patients = dict(rng.permutation(list(patients.items())))
+                return patients, class_to_idx
+
+            elif self.iterate_mode == 'visit':
+                visits_dict = {}
+                mapping_patient2visit = {}
+                visit_idx = 0
+                visit_id_map2visit_idx = {}
+
+                for i, row in self.data_frame.iterrows():
+                    cls_dir = row['label']
+                    patient_id = row['patient_id']
+                    eye = row['eye']
+                    if 'lat' not in eye:
+                        eye = 'lat' + eye
+                    slice_indices = row['slice_indices'].split('-')
+                    visit_id = row['folder'] + self.name_split_char + eye # from CSV column
+                    unique_patient_id = f"{cls_dir}_{patient_id}" if self.cls_unique else patient_id
+
+                    if visit_id not in visit_id_map2visit_idx:
+                        visit_id_map2visit_idx[visit_id] = visit_idx
+                        mapping_patient2visit.setdefault(unique_patient_id, []).append(visit_idx)
+                        visit_frames = []
+                        for slice_idx in slice_indices:
+                            img_name = f"{row['oct_imgname']}_{eye}_{slice_idx}.jpg"
+                            img_path = os.path.join(self.root_dir, visit_id, img_name)
+                            visit_frames.append(img_path)
+
+                        patients.setdefault(unique_patient_id, {
+                            'visit_id': [], 'class_idx': [], 'class': [], 'frames': []
+                        })
+                        patients[unique_patient_id]['visit_id'].append(visit_id)
+                        patients[unique_patient_id]['class_idx'].append(class_to_idx[cls_dir])
+                        patients[unique_patient_id]['class'].append(cls_dir)
+                        patients[unique_patient_id]['frames'].append(visit_frames)
+
+                        visits_dict[visit_idx] = {
+                            'class_idx': class_to_idx[cls_dir],
+                            'class': cls_dir,
+                            'frames': visit_frames.copy()
+                        }
+                        visit_idx += 1
+                    else: #Multiple images in one visit (LatL, LatR, etc.)
+                        used_visit_idx = visit_id_map2visit_idx[visit_id]
+                        visit_in_patient_loc = mapping_patient2visit[unique_patient_id].index(used_visit_idx)
+
+                        for slice_idx in slice_indices:
+                            img_name = f"{row['oct_imgname']}_{eye}_{slice_idx}.jpg"
+                            img_path = os.path.join(self.root_dir, visit_id, img_name)
+                            patients[unique_patient_id]['frames'][visit_in_patient_loc].append(img_path)
+                            visits_dict[used_visit_idx]['frames'].append(img_path)
+
+                ## Already sort the frames
+                self.visit_id_map2visit_idx = visit_id_map2visit_idx
+                return patients, class_to_idx, visits_dict, mapping_patient2visit
 
     def get_visit_idx(self, patient_id_list):
         visit_idx_list = []
