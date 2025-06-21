@@ -7,7 +7,7 @@ prefix=tienyuchang
 LOG_DIR=$ROOT/log_pt/
 OUTPUT_DIR=./outputs_ft_st/finetune_glaucoma_3D_fewshot_10folds_correct_visit/
 python main_finetune_downstream_glaucoma_correct_visit.py --nb_classes 2 \
-    --data_path $ROOT/$prefix/OCTCubeM/assets/ext_oph_datasets/glaucoma_processed/ \
+    --data_path $ROOT/$prefix/OCTCubeM/assets/ext_oph_datasets/GLAUCOMA/glaucoma_processed/ \
     --rank -1 \
     --dataset_mode volume \
     --iterate_mode visit \
