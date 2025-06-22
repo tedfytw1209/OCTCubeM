@@ -573,7 +573,8 @@ class PatientDataset3D(Dataset):
                             'frames': visit_frames.copy()
                         }
                         visit_idx += 1
-                    else: #Multiple images in one visit (LatL, LatR, etc.)
+                    else: #Multiple images in one visit: Not used
+                        '''
                         used_visit_idx = visit_id_map2visit_idx[unique_visit_id]
                         visit_in_patient_loc = mapping_patient2visit[unique_patient_id].index(used_visit_idx)
 
@@ -582,6 +583,8 @@ class PatientDataset3D(Dataset):
                             img_path = os.path.join(self.root_dir, visit_id, img_name)
                             patients[unique_patient_id]['frames'][visit_in_patient_loc].append(img_path)
                             visits_dict[used_visit_idx]['frames'].append(img_path)
+                        '''
+                        pass
 
                 ## Already sort the frames
                 self.visit_id_map2visit_idx = visit_id_map2visit_idx
