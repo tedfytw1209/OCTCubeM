@@ -1150,10 +1150,6 @@ def main(args):
                 for param_group in optimizer.param_groups:
                     param_group['lr'] /= 2
                 print(f"Downscale the learning rate to {param_group['lr']}")
-            
-            if args.patient_dataset_type == '3D' or args.patient_dataset_type == '3D_st' or args.patient_dataset_type.startswith('3D') or args.patient_dataset_type == 'convnext_slivit':
-                dataset_train.remove_dataset_transform()
-                dataset_val.update_dataset_transform(val_transform)
 
             val_stats, val_auc_roc, val_auc_pr = evaluate(data_loader_val, model, device, args.task, epoch, mode=val_mode, num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
             if args.return_bal_acc:
