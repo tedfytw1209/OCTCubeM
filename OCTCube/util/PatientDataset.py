@@ -138,7 +138,7 @@ class PatientDataset3D(Dataset):
             get_patients_func = self._get_patients_from_csv
             data_frame = pd.read_csv(csv_path)
             self.data_frame = data_frame[data_frame['split'].isin(is_train)]
-            print('Split: ', is_train,' Data len: ', self.annotations.shape[0])
+            print('Split: ', is_train,' Data len: ', self.data_frame.shape[0])
         else:       
             get_patients_func = self._get_patients
             self.data_frame = None
