@@ -718,12 +718,12 @@ class PatientDataset3D(Dataset):
 
             if self.transform and self.transform_type == 'monai_3D':
                 frames_tensor = frames_tensor.unsqueeze(0)
-                print('Frames tensor shape before transform:', frames_tensor.shape) #Debugging line
+                #print('Frames tensor shape before transform:', frames_tensor.shape) #Debugging line
                 if self.mode == 'rgb':
                     frames_tensor = frames_tensor.permute(0, 2, 1, 3, 4)  # [1, 25, 3, 496, 512] → [1, 3, 25, 496, 512]
                 frames_tensor = self.transform({"pixel_values": frames_tensor})["pixel_values"]
                 #from [1, 25, 3, 496, 512] → [25, 3, 496, 512] → [3, 25, 496, 512]
-                print('Frames tensor shape before transform:', frames_tensor.shape) #Debugging line
+                #print('Frames tensor shape after transform:', frames_tensor.shape) #Debugging line
 
 
             if self.return_patient_id:
