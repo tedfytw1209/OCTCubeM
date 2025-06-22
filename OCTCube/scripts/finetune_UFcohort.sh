@@ -20,7 +20,7 @@ prefix=tienyuchang
 IMG_DIR=/orange/ruogu.fang/tienyuchang/all_imgs_paired/
 CSV_DIR=/orange/ruogu.fang/tienyuchang/OCTRFF_Data/data/UF-cohort/new_v2/split/tune5-eval5/AMD_all_split.csv
 LOG_DIR=$ROOT/log_pt/
-OUTPUT_DIR=./outputs_ft_st/finetune_glaucoma_3D_fewshot_10folds_correct_visit/
+OUTPUT_DIR=./outputs_ft_st/UFcohort_AMD/
 python main_finetune_downstream_UFcohort.py --nb_classes 2 \
     --data_path $IMG_DIR \
     --csv_path $CSV_DIR \

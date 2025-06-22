@@ -715,6 +715,7 @@ class PatientDataset3D(Dataset):
 
             if self.transform and self.transform_type == 'monai_3D':
                 frames_tensor = frames_tensor.unsqueeze(0)
+                print('Frames tensor shape before transform:', frames_tensor.shape) #Debugging line
                 frames_tensor = self.transform({"pixel_values": frames_tensor})["pixel_values"]
 
 
