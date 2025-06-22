@@ -546,11 +546,12 @@ class PatientDataset3D(Dataset):
                     if 'lat' not in eye:
                         eye = 'lat' + eye
                     slice_indices = row['slice_indices'].split('-')
-                    visit_id = row['folder'] + self.name_split_char + eye # from CSV column
+                    visit_id = row['folder']
                     unique_patient_id = f"{cls_dir}_{patient_id}" if self.cls_unique else patient_id
+                    unique_visit_id = visit_id + self.name_split_char + eye
 
-                    if visit_id not in visit_id_map2visit_idx:
-                        visit_id_map2visit_idx[visit_id] = visit_idx
+                    if unique_visit_id not in visit_id_map2visit_idx:
+                        visit_id_map2visit_idx[unique_visit_id] = visit_idx
                         mapping_patient2visit.setdefault(unique_patient_id, []).append(visit_idx)
                         visit_frames = []
                         for slice_idx in slice_indices:
@@ -561,7 +562,7 @@ class PatientDataset3D(Dataset):
                         patients.setdefault(unique_patient_id, {
                             'visit_id': [], 'class_idx': [], 'class': [], 'frames': []
                         })
-                        patients[unique_patient_id]['visit_id'].append(visit_id)
+                        patients[unique_patient_id]['visit_id'].append(unique_visit_id)
                         patients[unique_patient_id]['class_idx'].append(class_to_idx[cls_dir])
                         patients[unique_patient_id]['class'].append(cls_dir)
                         patients[unique_patient_id]['frames'].append(visit_frames)
@@ -573,7 +574,7 @@ class PatientDataset3D(Dataset):
                         }
                         visit_idx += 1
                     else: #Multiple images in one visit (LatL, LatR, etc.)
-                        used_visit_idx = visit_id_map2visit_idx[visit_id]
+                        used_visit_idx = visit_id_map2visit_idx[unique_visit_id]
                         visit_in_patient_loc = mapping_patient2visit[unique_patient_id].index(used_visit_idx)
 
                         for slice_idx in slice_indices:
