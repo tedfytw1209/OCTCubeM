@@ -503,9 +503,9 @@ def main(args):
                         cls_embed=args.cls_embed,
                         use_flash_attention=True
                     )
-
             elif args.patient_dataset_type == 'convnext_slivit':
                 model = model_slivit_baseline.get_slivit_model(args)
+            
             if args.finetune and not args.eval and args.patient_dataset_type != 'convnext_slivit':
                 checkpoint = torch.load(args.finetune, map_location='cpu')
 
@@ -938,14 +938,99 @@ def main(args):
                 prob=args.mixup_prob, switch_prob=args.mixup_switch_prob, mode=args.mixup_mode,
                 label_smoothing=args.smoothing, num_classes=args.nb_classes)
 
-        model = models_vit.__dict__[args.model](
-            img_size=args.input_size,
-            num_classes=args.nb_classes,
-            drop_path_rate=args.drop_path,
-            global_pool=args.global_pool,
-        )
+        if args.patient_dataset_type == '3D':
+            model = models_vit_3dhead.__dict__[args.model](
+                img_size=args.input_size,
+                num_classes=args.nb_classes,
+                drop_path_rate=args.drop_path,
+                global_pool=args.global_pool,
+            )
+        elif args.patient_dataset_type == 'Center2D':
+            model = models_vit.__dict__[args.model](
+                img_size=args.input_size,
+                num_classes=args.nb_classes,
+                drop_path_rate=args.drop_path,
+                global_pool=args.global_pool,
+            )
+        elif args.patient_dataset_type == 'Center2D_flash_attn':
+            model = models_vit_flash_attn.__dict__[args.model](
+                img_size=args.input_size,
+                num_classes=args.nb_classes,
+                drop_path_rate=args.drop_path,
+                global_pool=args.global_pool,
+            )
+        elif args.patient_dataset_type == '3D_flash_attn':
+            print('Use 3D flash attn model')
+            model = models_vit_3dhead_flash_attn.__dict__[args.model](
+                img_size=args.input_size,
+                num_classes=args.nb_classes,
+                drop_path_rate=args.drop_path,
+                global_pool=args.global_pool,
+            )
+        elif args.patient_dataset_type == '3D_st':
+            print('Use 3D spatio-temporal model')
+            model = models_vit_st.__dict__[args.model](
+                img_size=args.input_size,
+                num_classes=args.nb_classes,
+                drop_path_rate=args.drop_path,
+                global_pool=args.global_pool,
+                t_patch_size=args.t_patch_size,
+                num_frames=args.num_frames,
+                sep_pos_embed=args.sep_pos_embed,
+                cls_embed=args.cls_embed,
+            )
+        elif args.patient_dataset_type == '3D_st_joint':
+            model = models_vit_st_joint_flash_attn.__dict__[args.model](
+                img_size=args.input_size,
+                num_classes=args.nb_classes,
+                drop_path_rate=args.drop_path,
+                global_pool=args.global_pool,
+                t_patch_size=args.t_patch_size,
+                num_frames=args.num_frames,
+                sep_pos_embed=args.sep_pos_embed,
+                cls_embed=args.cls_embed,
+                transform_type=args.transform_type,
+                color_mode=args.color_mode,
+                smaller_temporal_crop=args.smaller_temporal_crop,
+                use_high_res_patch_embed=args.use_high_res_patch_embed,
+            )
+        elif args.patient_dataset_type == '3D_st_flash_attn':
+            print('Use 3D spatio-temporal model w/ flash attention')
+            model = models_vit_st_flash_attn.__dict__[args.model](
+                num_frames=args.num_frames,
+                t_patch_size=args.t_patch_size,
+                img_size=args.input_size,
+                num_classes=args.nb_classes,
+                drop_path_rate=args.drop_path,
+                global_pool=args.global_pool,
+                sep_pos_embed=args.sep_pos_embed,
+                cls_embed=args.cls_embed,
+                use_flash_attention=True,
+            )
+        elif args.patient_dataset_type == '3D_st_flash_attn_nodrop':
+            print('Use 3D spatio-temporal model w/ flash attention and no dropout')
+            model = models_vit_st_flash_attn_nodrop.__dict__[args.model](
+                    num_frames=args.num_frames,
+                    t_patch_size=args.t_patch_size,
+                    image_size=args.input_size,
+                    num_classes=args.nb_classes,
+                    drop_path_rate=args.drop_path,
+                    global_pool=args.global_pool,
+                    sep_pos_embed=args.sep_pos_embed,
+                    cls_embed=args.cls_embed,
+                    use_flash_attention=True
+                )
+        elif args.patient_dataset_type == 'convnext_slivit':
+            model = model_slivit_baseline.get_slivit_model(args)
+        else:
+            model = models_vit.__dict__[args.model](
+                img_size=args.input_size,
+                num_classes=args.nb_classes,
+                drop_path_rate=args.drop_path,
+                global_pool=args.global_pool,
+            )
 
-        if args.finetune and not args.eval:
+        if args.finetune and not args.eval and args.patient_dataset_type != 'convnext_slivit':
             checkpoint = torch.load(args.finetune, map_location='cpu')
 
             print("Load pre-trained checkpoint from: %s" % args.finetune)
@@ -957,14 +1042,34 @@ def main(args):
                     del checkpoint_model[k]
 
             # interpolate position embedding
-            interpolate_pos_embed(model, checkpoint_model)
+            if args.sep_pos_embed and (args.patient_dataset_type == '3D_st' or args.patient_dataset_type == '3D_st_flash_attn' or args.patient_dataset_type == '3D_st_flash_attn_nodrop' or args.patient_dataset_type.startswith('3D_st')):
+                interpolate_pos_embed(model, checkpoint_model)
+                interpolate_temporal_pos_embed(model, checkpoint_model, smaller_interpolate_type=args.smaller_temporal_crop)
+            else:
+                interpolate_pos_embed(model, checkpoint_model)
 
             # load pre-trained model
-            msg = model.load_state_dict(checkpoint_model, strict=False)
+            if args.load_non_flash_attn_to_flash_attn:
+                msg = model.load_state_dict_to_backbone(checkpoint["model"])
+            else:
+                msg = model.load_state_dict(checkpoint_model, strict=False)
             print(msg)
+            print(msg.missing_keys)
 
             if args.global_pool:
-                assert set(msg.missing_keys) == {'head.weight', 'head.bias', 'fc_norm.weight', 'fc_norm.bias'}
+                if args.patient_dataset_type == '3D' or args.patient_dataset_type == '3D_flash_attn':
+                    assert set(msg.missing_keys) == {'fc_aggregate_cls.weight', 'fc_aggregate_cls.bias',
+                    'aggregate_cls_norm.weight', 'aggregate_cls_norm.bias',
+                    'head.weight', 'head.bias', 'fc_norm.weight', 'fc_norm.bias'}
+                elif args.patient_dataset_type == '3D_st_flash_attn_nodrop':
+                    print('Goin right way')
+                    assert set(msg.missing_keys) == {'fc_aggregate_cls.weight', 'fc_aggregate_cls.bias',
+                    'aggregate_cls_norm.weight', 'aggregate_cls_norm.bias',
+                    'head.weight', 'head.bias'}
+                elif args.patient_dataset_type == 'Center2D' or args.patient_dataset_type == 'Center2D_flash_attn':
+                    assert set(msg.missing_keys) == {'head.weight', 'head.bias', 'fc_norm.weight', 'fc_norm.bias'}
+                elif args.patient_dataset_type == '3D_st' or args.patient_dataset_type == '3D_st_joint' or args.patient_dataset_type == '3D_st_flash_attn' or args.patient_dataset_type == '3D_st_joint_flash_attn':
+                    assert set(msg.missing_keys) == {'head.weight', 'head.bias'}
             else:
                 assert set(msg.missing_keys) == {'head.weight', 'head.bias'}
 
@@ -995,10 +1100,15 @@ def main(args):
             model_without_ddp = model.module
 
         # build optimizer with layer-wise lr decay (lrd)
-        param_groups = lrd.param_groups_lrd(model_without_ddp, args.weight_decay,
-            no_weight_decay_list=model_without_ddp.no_weight_decay(),
-            layer_decay=args.layer_decay
-        )
+        if args.patient_dataset_type == 'convnext_slivit':
+            # don't use layer-wise lr decay for convnext_slivit
+            param_groups = model_without_ddp.parameters()
+        else:
+            # build optimizer with layer-wise lr decay (lrd)
+            param_groups = lrd.param_groups_lrd(model_without_ddp, args.weight_decay,
+                no_weight_decay_list=model_without_ddp.no_weight_decay(),
+                layer_decay=args.layer_decay
+            )
         optimizer = torch.optim.AdamW(param_groups, lr=args.lr)
         loss_scaler = NativeScaler()
 
@@ -1015,7 +1125,9 @@ def main(args):
         misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
 
         if args.eval:
-            test_stats,auc_roc, auc_pr = evaluate(data_loader_test, model, device, args.task, epoch=0, mode='test', num_class=args.nb_classes)
+            test_stats, auc_roc, auc_pr = evaluate(data_loader_test, model, device, args.task, epoch=0, mode=test_mode, num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
+            if args.return_bal_acc:
+                test_auc_pr, test_bal_acc = auc_pr
             exit(0)
 
         print(f"Start training for {args.epochs} epochs")
@@ -1032,13 +1144,22 @@ def main(args):
                 log_writer=log_writer,
                 args=args
             )
+            if train_stats is None:
+                # downscale the learning rate by 2
+                for param_group in optimizer.param_groups:
+                    param_group['lr'] /= 2
+                print(f"Downscale the learning rate to {param_group['lr']}")
+            
+            if args.patient_dataset_type == '3D' or args.patient_dataset_type == '3D_st' or args.patient_dataset_type.startswith('3D') or args.patient_dataset_type == 'convnext_slivit':
+                dataset_train.remove_dataset_transform()
+                dataset_val.update_dataset_transform(val_transform)
 
-            val_stats,val_auc_roc, auc_pr = evaluate(data_loader_val, model, device, args.task,epoch, mode='val', num_class=args.nb_classes)
+            val_stats, val_auc_roc, val_auc_pr = evaluate(data_loader_val, model, device, args.task, epoch, mode=val_mode, num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=disease_list, return_bal_acc=args.return_bal_acc, args=args)
+            if args.return_bal_acc:
+                val_auc_pr, val_bal_acc = val_auc_pr
+            
             if max_auc <= val_auc_roc:
                 max_auc = val_auc_roc
-
-
-
                 if args.output_dir:
                     misc.save_model(
                         args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,

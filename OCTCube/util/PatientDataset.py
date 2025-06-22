@@ -942,6 +942,18 @@ class PatientDataset3D(Dataset):
 
     def update_transform(self, transform):
         self.transform = transform
+        
+    def update_dataset_transform(self, transform):
+        self.transform = transform
+
+    def remove_dataset_transform(self):
+        self.transform = None
+
+    def update_dataset_transform_high_res(self, transform):
+        self.high_res_transform = transform
+
+    def remove_dataset_transform_high_res(self):
+        self.high_res_transform = None
 
     def update_indices(self, indices):
         self.indices = indices
