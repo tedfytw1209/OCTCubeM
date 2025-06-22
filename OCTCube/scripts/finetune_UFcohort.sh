@@ -44,6 +44,7 @@ python main_finetune_downstream_UFcohort.py --nb_classes 2 \
     --warmup_epochs 5 \
     --world_size 1 \
     --model flash_attn_vit_large_patch16 \
+    --patient_dataset UFcohort \
     --patient_dataset_type 3D_st_flash_attn_nodrop \
     --transform_type monai_3D \
     --color_mode gray \
