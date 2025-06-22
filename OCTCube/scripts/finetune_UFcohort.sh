@@ -47,7 +47,7 @@ python main_finetune_downstream_UFcohort.py --nb_classes 2 \
     --patient_dataset UFcohort \
     --patient_dataset_type 3D_st_flash_attn_nodrop \
     --transform_type monai_3D \
-    --color_mode rgb \
+    --color_mode gray \
     --epochs 100 \
     --blr 5e-3 \
     --layer_decay 0.65 \

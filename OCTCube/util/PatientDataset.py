@@ -663,7 +663,7 @@ class PatientDataset3D(Dataset):
             if self.mode == 'rgb':
                 frames = [frame.convert("RGB") for frame in frames]
             else:
-                pass
+                frames = [frame.convert("L") for frame in frames]
 
             if self.downsample_width:
                 for i, frame in enumerate(frames):
@@ -711,12 +711,14 @@ class PatientDataset3D(Dataset):
                     pass
 
             if self.mode == 'gray':
-                frames_tensor = frames_tensor.squeeze(1)
+                frames_tensor = frames_tensor.squeeze(1) # Convert [D, 1, H, W] to [D, H, W] if single channel
 
             if self.transform and self.transform_type == 'monai_3D':
                 frames_tensor = frames_tensor.unsqueeze(0)
                 print('Frames tensor shape before transform:', frames_tensor.shape) #Debugging line
-                frames_tensor = self.transform({"pixel_values": frames_tensor.squeeze(0).permute(1, 0, 2, 3)})["pixel_values"]
+                if self.mode == 'rgb':
+                    frames_tensor = frames_tensor.permute(0, 2, 1, 3, 4)  # [1, 25, 3, 496, 512] → [1, 3, 25, 496, 512]
+                frames_tensor = self.transform({"pixel_values": frames_tensor})["pixel_values"]
                 #from [1, 25, 3, 496, 512] → [25, 3, 496, 512] → [3, 25, 496, 512]
                 print('Frames tensor shape before transform:', frames_tensor.shape) #Debugging line
 
