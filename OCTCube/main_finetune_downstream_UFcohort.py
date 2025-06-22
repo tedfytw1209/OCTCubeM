@@ -130,7 +130,7 @@ def get_args_parser():
     parser.add_argument('--early_stop_patience', default=10, type=int, help='early stop patience, currently not used in this script')
 
     # K_fold cross validation
-    parser.add_argument('--k_fold', default=True, action='store_true', help='Use K-fold cross validation')
+    parser.add_argument('--k_fold', default=False, action='store_true', help='Use K-fold cross validation')
     parser.add_argument('--k_folds', default=5, type=int, help='number of folds for K-fold cross validation')
 
     parser.add_argument('--batch_size', default=64, type=int,
