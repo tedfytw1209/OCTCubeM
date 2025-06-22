@@ -871,6 +871,7 @@ def main(args):
         print(f"Fold results: {fold_results_test}\nMean: {fold_results_mean_test}\nStd: {fold_results_std_test}",
             file=open(os.path.join(args.output_dir, "fold_results_test.txt"), mode="a"))
     else:  # args.distributed:
+        val_mode = 'val'
         sampler_train = torch.utils.data.DistributedSampler(
             dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
         )
@@ -1154,7 +1155,7 @@ def main(args):
                 dataset_train.remove_dataset_transform()
                 dataset_val.update_dataset_transform(val_transform)
 
-            val_stats, val_auc_roc, val_auc_pr = evaluate(data_loader_val, model, device, args.task, epoch, mode=val_mode, num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=disease_list, return_bal_acc=args.return_bal_acc, args=args)
+            val_stats, val_auc_roc, val_auc_pr = evaluate(data_loader_val, model, device, args.task, epoch, mode=val_mode, num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
             if args.return_bal_acc:
                 val_auc_pr, val_bal_acc = val_auc_pr
             
@@ -1167,7 +1168,7 @@ def main(args):
 
 
             if epoch==(args.epochs-1):
-                test_stats,auc_roc, auc_pr = evaluate(data_loader_test, model, device, args.task,epoch, mode='test', num_class=args.nb_classes)
+                test_stats,auc_roc, auc_pr = evaluate(data_loader_test, model, device, args.task,epoch, mode='test', num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
 
 
             if log_writer is not None:
