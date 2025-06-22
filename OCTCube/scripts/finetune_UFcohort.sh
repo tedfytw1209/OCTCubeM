@@ -15,13 +15,18 @@ date;hostname;pwd
 module load conda
 conda activate octcube
 
+STUDY=$1 #AMD_all_split 2, Cataract_all_split 2, DR_all_split 6, Glaucoma_all_split 6, DR_all_split_binary 2, Glaucoma_all_split_binary 2
+MODEL=${2:-"flash_attn_vit_large_patch16"}
+Num_CLASS=${3:-"2"}
+Eval_score=${4:-"AUC"}
+
 ROOT=/blue/ruogu.fang
 prefix=tienyuchang
 IMG_DIR=/orange/ruogu.fang/tienyuchang/all_imgs_paired/
-CSV_DIR=/orange/ruogu.fang/tienyuchang/OCTRFF_Data/data/UF-cohort/new_v2/split/tune5-eval5/AMD_all_split.csv
+CSV_DIR=/orange/ruogu.fang/tienyuchang/OCTRFF_Data/data/UF-cohort/new_v2/split/tune5-eval5/${STUDY}.csv
 LOG_DIR=$ROOT/log_pt/
-OUTPUT_DIR=./outputs_ft_st/UFcohort_AMD/
-python main_finetune_downstream_UFcohort.py --nb_classes 2 \
+OUTPUT_DIR=./outputs_ft_st/UFcohort_${STUDY}/
+python main_finetune_downstream_UFcohort.py --nb_classes $Num_CLASS \
     --data_path $IMG_DIR \
     --csv_path $CSV_DIR \
     --rank -1 \
@@ -35,7 +40,7 @@ python main_finetune_downstream_UFcohort.py --nb_classes 2 \
     --k_folds 0 \
     --task ${OUTPUT_DIR} \
     --task_mode binary_cls \
-    --val_metric AUPRC \
+    --val_metric AUC \
     --input_size 128 \
     --log_dir ${LOG_DIR} \
     --output_dir ${OUTPUT_DIR} \
@@ -43,7 +48,7 @@ python main_finetune_downstream_UFcohort.py --nb_classes 2 \
     --val_batch_size 16 \
     --warmup_epochs 5 \
     --world_size 1 \
-    --model flash_attn_vit_large_patch16 \
+    --model $MODEL \
     --patient_dataset UFcohort \
     --patient_dataset_type 3D_st_flash_attn_nodrop \
     --transform_type monai_3D \
