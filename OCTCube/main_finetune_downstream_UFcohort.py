@@ -871,8 +871,6 @@ def main(args):
         print(f"Fold results: {fold_results_test}\nMean: {fold_results_mean_test}\nStd: {fold_results_std_test}",
             file=open(os.path.join(args.output_dir, "fold_results_test.txt"), mode="a"))
     else:  # args.distributed:
-        assert args.patient_dataset is False
-
         sampler_train = torch.utils.data.DistributedSampler(
             dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
         )
