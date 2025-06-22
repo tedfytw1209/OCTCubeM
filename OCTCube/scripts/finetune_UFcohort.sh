@@ -19,13 +19,14 @@ STUDY=$1 #AMD_all_split 2, Cataract_all_split 2, DR_all_split 6, Glaucoma_all_sp
 MODEL=${2:-"flash_attn_vit_large_patch16"}
 Num_CLASS=${3:-"2"}
 Eval_score=${4:-"AUC"}
+ADDCMD=${5:-""}
 
 ROOT=/blue/ruogu.fang
 prefix=tienyuchang
 IMG_DIR=/orange/ruogu.fang/tienyuchang/all_imgs_paired/
 CSV_DIR=/orange/ruogu.fang/tienyuchang/OCTRFF_Data/data/UF-cohort/new_v2/split/tune5-eval5/${STUDY}.csv
 LOG_DIR=$ROOT/log_pt/
-OUTPUT_DIR=./outputs_ft_st/UFcohort_${STUDY}/
+OUTPUT_DIR=./outputs_ft_st/UFcohort_${STUDY}${ADDCMD}/
 python main_finetune_downstream_UFcohort.py --nb_classes $Num_CLASS \
     --data_path $IMG_DIR \
     --csv_path $CSV_DIR \

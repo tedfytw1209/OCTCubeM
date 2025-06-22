@@ -4,9 +4,9 @@ SCRIPT=$1 #AMD_all_split 2, Cataract_all_split 2, DR_all_split 6, Glaucoma_all_s
 MODEL=${2:-"flash_attn_vit_large_patch16"}
 Num_CLASS=${3:-"2"}
 Eval_score=${4:-"AUC"}
+ADDCMD=${5:-""}
 
-
-#bash scripts/UFcohort_multirun.sh scripts/finetune_UFcohort.sh flash_attn_vit_large_patch16 2 AUC
+#bash scripts/UFcohort_multirun.sh scripts/finetune_UFcohort.sh flash_attn_vit_large_patch16 2 mcc --testval
 DATASETS=(AMD_all_split Cataract_all_split DR_all_split Glaucoma_all_split DR_all_split_binary Glaucoma_all_split_binary)  # List of datasets
 CLASSES=(2 2 6 6 2 2)  # Number of classes for each dataset
 for i in "${!DATASETS[@]}"

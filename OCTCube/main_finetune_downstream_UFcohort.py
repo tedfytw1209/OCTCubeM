@@ -239,8 +239,6 @@ def get_args_parser():
     parser.add_argument('--no_pin_mem', action='store_false', dest='pin_mem')
     parser.set_defaults(pin_mem=True)
     #06/22 add
-    parser.add_argument('--eval_score', default='auc', type=str,
-                        help='eval_score, default auc')
     parser.add_argument('--testval', action='store_true', default=False,
                         help='Use test set for validation, otherwise use val set')
 
