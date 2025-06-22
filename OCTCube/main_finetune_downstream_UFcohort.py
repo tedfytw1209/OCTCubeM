@@ -111,7 +111,8 @@ def get_args_parser():
     # Patient dataset parameters
     # Dataset parameters
     parser.add_argument('--data_path', default=home_directory + dataset_path, type=str, help='dataset path')
-    parser.add_argument('--patient_dataset', default=True, action='store_true', help='Use patient dataset')
+    parser.add_argument('--csv_path', default=home_directory + dataset_path, type=str, help='csv path')
+    parser.add_argument('--patient_dataset', default='', type=str, help='Use patient dataset')
     parser.add_argument('--patient_dataset_type', default='Center2D', type=str, choices=['3D', 'Center2D', 'Center2D_flash_attn',  '3D_flash_attn', '3D_st', '3D_st_joint', '3D_st_flash_attn', '3D_st_joint_flash_attn', '3D_st_flash_attn_nodrop', 'convnext_slivit'], help='patient dataset type')
     parser.add_argument('--dataset_mode', default='volume', type=str, choices=['volume'], help='dataset mode for the patient dataset')
     parser.add_argument('--iterate_mode', default='visit', type=str, choices=['visit'], help='iterate mode for the patient dataset, glaucome uses visit')
@@ -241,7 +242,7 @@ def get_args_parser():
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,
                         help='number of distributed processes')
-    parser.add_argument('--local_rank', default=-1, type=int)
+    parser.add_argument('--rank', default=-1, type=int)
     parser.add_argument('--dist_on_itp', action='store_true')
     parser.add_argument('--dist_url', default='env://',
                         help='url used to set up distributed training')
@@ -277,6 +278,21 @@ def main(args):
         dataset_train = build_dataset(is_train='train', args=args)
         dataset_val = build_dataset(is_train='val', args=args)
         dataset_test = build_dataset(is_train='test', args=args)
+        assert args.k_fold is False
+    elif args.patient_dataset=='UFcohort':
+        if args.transform_type == 'volume_3D':
+            train_transform = video_transforms.Compose([
+                video_transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ])
+            val_transform = train_transform
+        elif args.transform_type == 'monai_3D':
+            train_transform, val_transform = create_3d_transforms(**vars(args))
+        dataset_train = PatientDataset3D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, max_frames=args.max_frames, mode=args.color_mode, transform_type=args.transform_type, volume_resize=args.input_size, same_3_frames=args.same_3_frames, csv_path=args.csv_path, is_train='train')
+        dataset_val = PatientDataset3D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, max_frames=args.max_frames, mode=args.color_mode, transform_type=args.transform_type, volume_resize=args.input_size, same_3_frames=args.same_3_frames, csv_path=args.csv_path, is_train='val')
+        dataset_test = PatientDataset3D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, max_frames=args.max_frames, mode=args.color_mode, transform_type=args.transform_type, volume_resize=args.input_size, same_3_frames=args.same_3_frames, csv_path=args.csv_path, is_train='test')
+        dataset_train.update_transform(train_transform)
+        dataset_val.update_transform(val_transform)
+        dataset_test.update_transform(val_transform)
         assert args.k_fold is False
     else:
         if args.transform_type == 'volume_3D':
@@ -854,7 +870,6 @@ def main(args):
         print(f"Fold results: {fold_results_test}\nMean: {fold_results_mean_test}\nStd: {fold_results_std_test}")
         print(f"Fold results: {fold_results_test}\nMean: {fold_results_mean_test}\nStd: {fold_results_std_test}",
             file=open(os.path.join(args.output_dir, "fold_results_test.txt"), mode="a"))
-
     else:  # args.distributed:
         assert args.patient_dataset is False
 

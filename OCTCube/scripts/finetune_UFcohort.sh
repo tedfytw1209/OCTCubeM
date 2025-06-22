@@ -1,0 +1,44 @@
+
+module load conda
+conda activate octcube
+
+ROOT=/blue/ruogu.fang
+prefix=tienyuchang
+IMG_DIR=/orange/ruogu.fang/tienyuchang/all_imgs_paired/
+CSV_DIR=/orange/ruogu.fang/tienyuchang/OCTRFF_Data/data/UF-cohort/new_v2/split/tune5-eval5/AMD_all_split.csv
+LOG_DIR=$ROOT/log_pt/
+OUTPUT_DIR=./outputs_ft_st/finetune_glaucoma_3D_fewshot_10folds_correct_visit/
+python main_finetune_downstream_UFcohort.py --nb_classes 2 \
+    --data_path $IMG_DIR \
+    --csv_path $CSV_DIR \
+    --rank -1 \
+    --dataset_mode frame \
+    --iterate_mode visit \
+    --name_split_char - \
+    --patient_idx_loc 1 \
+    --max_frames 25 \
+    --num_frames 60 \
+    --few_shot \
+    --k_folds 0 \
+    --task ${OUTPUT_DIR} \
+    --task_mode binary_cls \
+    --val_metric AUPRC \
+    --input_size 128 \
+    --log_dir ${LOG_DIR} \
+    --output_dir ${OUTPUT_DIR} \
+    --batch_size 4 \
+    --val_batch_size 16 \
+    --warmup_epochs 5 \
+    --world_size 1 \
+    --model flash_attn_vit_large_patch16 \
+    --patient_dataset_type 3D_st_flash_attn_nodrop \
+    --transform_type monai_3D \
+    --color_mode gray \
+    --epochs 100 \
+    --blr 5e-3 \
+    --layer_decay 0.65 \
+    --weight_decay 0.05 \
+    --drop_path 0.2 \
+    --num_workers 8 \
+    --finetune $ROOT/$prefix/OCTCubeM/ckpt/OCTCube.pth \
+    --return_bal_acc \
