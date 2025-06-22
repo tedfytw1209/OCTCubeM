@@ -774,10 +774,13 @@ def evaluate(data_loader, model, device, task, epoch, mode, num_class, criterion
 
                     plt.savefig(task + f'confusion_matrix_{mode}_{i+extra_idx}_{disease_list[i]}_epoch_{epoch}.jpg', dpi=600, bbox_inches ='tight')
                     plt.clf()
+        eval_stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
+        eval_stats.update(macro_metrics)
+        
         if return_bal_acc:
-            return {k: meter.global_avg for k, meter in metric_logger.meters.items()}, macro_metrics['roc_auc'], (macro_metrics['auprc'], macro_metrics['balanced_acc'])
+            return eval_stats, macro_metrics['roc_auc'], (macro_metrics['auprc'], macro_metrics['balanced_acc'])
         else:
-            return {k: meter.global_avg for k, meter in metric_logger.meters.items()}, macro_metrics['roc_auc'], macro_metrics['auprc']
+            return eval_stats, macro_metrics['roc_auc'], macro_metrics['auprc']
 
 
     # gather the stats from all processes

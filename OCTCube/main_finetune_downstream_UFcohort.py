@@ -292,8 +292,14 @@ def main(args):
             val_transform = train_transform
         elif args.transform_type == 'monai_3D':
             train_transform, val_transform = create_3d_transforms(**vars(args))
-        dataset_train = PatientDataset3D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, max_frames=args.max_frames, mode=args.color_mode, transform_type=args.transform_type, volume_resize=args.input_size, same_3_frames=args.same_3_frames, csv_path=args.csv_path, is_train='train')
-        dataset_val = PatientDataset3D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, max_frames=args.max_frames, mode=args.color_mode, transform_type=args.transform_type, volume_resize=args.input_size, same_3_frames=args.same_3_frames, csv_path=args.csv_path, is_train='val')
+        if not args.testval:
+            tr_istrain = 'train'
+            val_istrain = 'val'
+        else:
+            tr_istrain = ['train', 'val']
+            val_istrain = 'test'
+        dataset_train = PatientDataset3D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, max_frames=args.max_frames, mode=args.color_mode, transform_type=args.transform_type, volume_resize=args.input_size, same_3_frames=args.same_3_frames, csv_path=args.csv_path, is_train=tr_istrain)
+        dataset_val = PatientDataset3D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, max_frames=args.max_frames, mode=args.color_mode, transform_type=args.transform_type, volume_resize=args.input_size, same_3_frames=args.same_3_frames, csv_path=args.csv_path, is_train=val_istrain)
         dataset_test = PatientDataset3D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, max_frames=args.max_frames, mode=args.color_mode, transform_type=args.transform_type, volume_resize=args.input_size, same_3_frames=args.same_3_frames, csv_path=args.csv_path, is_train='test')
         dataset_train.update_transform(train_transform)
         dataset_val.update_transform(val_transform)
@@ -1139,7 +1145,7 @@ def main(args):
         print(f"Start training for {args.epochs} epochs")
         start_time = time.time()
         max_accuracy = 0.0
-        max_auc = 0.0
+        max_score = 0.0
         for epoch in range(args.start_epoch, args.epochs):
             if args.distributed:
                 data_loader_train.sampler.set_epoch(epoch)
@@ -1159,9 +1165,14 @@ def main(args):
             val_stats, val_auc_roc, val_auc_pr = evaluate(data_loader_val, model, device, args.task, epoch, mode=val_mode, num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
             if args.return_bal_acc:
                 val_auc_pr, val_bal_acc = val_auc_pr
-            
-            if max_auc <= val_auc_roc:
-                max_auc = val_auc_roc
+            #eval score
+            if args.val_metric== 'AUC':
+                e_score = val_auc_roc
+            elif args.val_metric in val_stats:
+                e_score = val_stats[args.val_metric]
+            #select best
+            if max_score <= e_score:
+                max_score = e_score
                 if args.output_dir:
                     misc.save_model(
                         args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
