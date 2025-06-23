@@ -124,7 +124,7 @@ def get_args_parser():
 
     # Task parameters
     parser.add_argument('--task_mode', default='binary_cls', type=str, choices=['binary_cls'], help='Task mode for the dataset (no multi_label here)')
-    parser.add_argument('--val_metric', default='AUPRC', type=str, choices=['AUC', 'ACC', 'AUPRC', 'BalAcc'], help='Validation metric for early stopping, newly added BalAcc (only used in AI-READI)')
+    parser.add_argument('--val_metric', default='AUPRC', type=str, help='Validation metric for early stopping, newly added BalAcc (only used in AI-READI)')
 
     parser.add_argument('--save_model', default=False, action='store_true', help='save model')
     parser.add_argument('--enable_early_stop', default=False, action='store_true', help='enable early stop, currently not used in this script')
