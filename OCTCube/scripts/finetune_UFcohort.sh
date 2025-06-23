@@ -62,4 +62,5 @@ python main_finetune_downstream_UFcohort.py --nb_classes $Num_CLASS \
     --num_workers 8 \
     --finetune $ROOT/$prefix/OCTCubeM/ckpt/OCTCube.pth \
     --return_bal_acc \
+    --not_print_logits \
     ${ADDCMD}
