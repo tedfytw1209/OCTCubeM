@@ -123,7 +123,7 @@ def get_args_parser():
     parser.add_argument('--cls_unique', default=False, action='store_true', help='use unique class labels for the dataset')
 
     # Task parameters
-    parser.add_argument('--task_mode', default='binary_cls', type=str, choices=['binary_cls'], help='Task mode for the dataset (no multi_label here)')
+    parser.add_argument('--task_mode', default='binary_cls', type=str, choices=['binary_cls','multi_cls'], help='Task mode for the dataset (no multi_label here)')
     parser.add_argument('--val_metric', default='AUPRC', type=str, help='Validation metric for early stopping, newly added BalAcc (only used in AI-READI)')
 
     parser.add_argument('--save_model', default=False, action='store_true', help='save model')
