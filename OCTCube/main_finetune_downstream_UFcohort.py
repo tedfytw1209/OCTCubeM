@@ -1156,6 +1156,7 @@ def main(args):
         start_time = time.time()
         max_accuracy = 0.0
         max_score = 0.0
+        best_val_stats = {}
         for epoch in range(args.start_epoch, args.epochs):
             if args.distributed:
                 data_loader_train.sampler.set_epoch(epoch)
@@ -1180,6 +1181,8 @@ def main(args):
                 e_score = val_auc_roc
             elif args.val_metric in val_stats:
                 e_score = val_stats[args.val_metric]
+            else:
+                raise ValueError(f"Unknown validation metric: {args.val_metric}")
             #select best
             if max_score <= e_score:
                 max_score = e_score
@@ -1188,13 +1191,6 @@ def main(args):
                         args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
                         loss_scaler=loss_scaler, epoch=epoch)
                 best_val_stats = val_stats
-
-
-            if epoch==(args.epochs-1):
-                wandb_dict = {}
-                wandb_dict.update({f'best_val_{k}': v for k, v in best_val_stats.items()})
-                wandb.log(wandb_dict)
-
 
             if log_writer is not None:
                 log_writer.add_scalar('perf/val_acc1', val_stats['acc1'], epoch)
@@ -1214,7 +1210,10 @@ def main(args):
                 wandb_dict.update({f'train_{k}': v for k, v in train_stats.items()})
                 wandb_dict.update({f'val_{k}': v for k, v in val_stats.items()})
                 wandb.log(wandb_dict, step=epoch)
-        
+        #best valid
+        wandb_dict = {}
+        wandb_dict.update({f'best_val_{k}': v for k, v in best_val_stats.items()})
+        wandb.log(wandb_dict)
         #Load best val model for testing
         misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
         test_stats,auc_roc, auc_pr = evaluate(data_loader_test, model, device, args.task,epoch, mode='test', num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
