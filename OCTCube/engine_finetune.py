@@ -797,6 +797,20 @@ def evaluate(data_loader, model, device, task, epoch, mode, num_class, criterion
     metric_logger.synchronize_between_processes()
 
     print('Sklearn Metrics - Acc: {:.4f} Balanced-Acc: {:.4f} AUC-roc: {:.4f} AUC-pr: {:.4f} F1-score: {:.4f} MCC: {:.4f}'.format(acc, balanced_acc, auc_roc, auc_pr, F1, mcc))
+    macro_metrics = {
+        'accuracy': acc,
+        'balanced_acc': balanced_acc,
+        'sensitivity': sensitivity,
+        'specificity': specificity,
+        'precision': precision,
+        'recall': sensitivity,  # recall is the same as sensitivity in binary classification
+        'auc_roc': auc_roc,
+        'auprc': auc_pr,
+        'f1': F1,
+        'mcc': mcc,
+        'G': G,
+        'kappa': cohen_kappa_score(true_label_decode_list, prediction_decode_list),
+    }
     results_path = task + 'metrics_{}.csv'.format(mode)
     with open(results_path, mode='a', newline='', encoding='utf8') as cfa:
         wf = csv.writer(cfa)
@@ -810,8 +824,10 @@ def evaluate(data_loader, model, device, task, epoch, mode, num_class, criterion
         cm.plot(cmap = plt.cm.Blues, number_label=True, normalized=True, plot_lib="matplotlib")
         plt.savefig(task + f'confusion_matrix_{mode}_epoch_{epoch}.jpg', dpi=600, bbox_inches='tight')
 
+    eval_stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
+    eval_stats.update(macro_metrics)
     if return_bal_acc:
-        return {k: meter.global_avg for k, meter in metric_logger.meters.items()}, auc_roc, (auc_pr, balanced_acc)
+        return eval_stats, auc_roc, (auc_pr, balanced_acc)
     else:
-        return {k: meter.global_avg for k, meter in metric_logger.meters.items()}, auc_roc, auc_pr
+        return eval_stats, auc_roc, auc_pr
 

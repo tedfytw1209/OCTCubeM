@@ -41,7 +41,7 @@ python main_finetune_downstream_UFcohort.py --nb_classes $Num_CLASS \
     --k_folds 0 \
     --task ${OUTPUT_DIR} \
     --task_mode binary_cls \
-    --val_metric AUC \
+    --val_metric $Eval_score \
     --input_size 128 \
     --log_dir ${LOG_DIR} \
     --output_dir ${OUTPUT_DIR} \
@@ -62,3 +62,4 @@ python main_finetune_downstream_UFcohort.py --nb_classes $Num_CLASS \
     --num_workers 8 \
     --finetune $ROOT/$prefix/OCTCubeM/ckpt/OCTCube.pth \
     --return_bal_acc \
+    ${ADDCMD}
