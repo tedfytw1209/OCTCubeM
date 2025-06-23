@@ -47,6 +47,7 @@ from util.PatientDataset_inhouse import create_3d_transforms
 from util.datasets import build_transform
 
 from engine_finetune import train_one_epoch, evaluate, init_csv_writer
+import wandb
 
 # RETFound-center
 import models_vit
@@ -258,6 +259,14 @@ def main(args):
 
     print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
     print("{}".format(args).replace(', ', ',\n'))
+    
+    wandb_task_name = args.task.replace('.','').replace('/', '_') + datetime.datetime.now().strftime("_%Y%m%d_%H%M%S")
+    wandb.init(
+        project="OCTCubeM",
+        name=wandb_task_name,
+        config=args,
+        dir=os.path.join(args.log_dir,wandb_task_name),
+    )
 
     # Save args to a json file
     if args.output_dir:
@@ -1138,6 +1147,9 @@ def main(args):
             test_stats, auc_roc, auc_pr = evaluate(data_loader_test, model, device, args.task, epoch=0, mode=test_mode, num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
             if args.return_bal_acc:
                 test_auc_pr, test_bal_acc = auc_pr
+            wandb_dict={f'test_{k}': v for k, v in test_stats.items()}
+            wandb.log(wandb_dict)
+            wandb.finish()
             exit(0)
 
         print(f"Start training for {args.epochs} epochs")
@@ -1175,10 +1187,13 @@ def main(args):
                     misc.save_model(
                         args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
                         loss_scaler=loss_scaler, epoch=epoch)
+                best_val_stats = val_stats
 
 
             if epoch==(args.epochs-1):
-                test_stats,auc_roc, auc_pr = evaluate(data_loader_test, model, device, args.task,epoch, mode='test', num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
+                wandb_dict = {}
+                wandb_dict.update({f'best_val_{k}': v for k, v in best_val_stats.items()})
+                wandb.log(wandb_dict)
 
 
             if log_writer is not None:
@@ -1195,11 +1210,25 @@ def main(args):
                     log_writer.flush()
                 with open(os.path.join(args.output_dir, "log.txt"), mode="a") as f:
                     f.write(json.dumps(log_stats) + "\n")
-
+                wandb_dict = {"epoch": epoch}
+                wandb_dict.update({f'train_{k}': v for k, v in train_stats.items()})
+                wandb_dict.update({f'val_{k}': v for k, v in val_stats.items()})
+                wandb.log(wandb_dict, step=epoch)
+        
+        #Load best val model for testing
+        misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
+        test_stats,auc_roc, auc_pr = evaluate(data_loader_test, model, device, args.task,epoch, mode='test', num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
+        wandb_dict = {}
+        wandb_dict.update({f'test_{k}': v for k, v in test_stats.items()})
+        wandb.log(wandb_dict)
 
         total_time = time.time() - start_time
         total_time_str = str(datetime.timedelta(seconds=int(total_time)))
         print('Training time {}'.format(total_time_str))
+        
+        if log_writer is not None and misc.is_main_process():
+            log_writer.close()
+            wandb.finish()
 
 
 if __name__ == '__main__':
