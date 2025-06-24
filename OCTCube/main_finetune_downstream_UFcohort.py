@@ -1156,7 +1156,7 @@ def main(args):
         start_time = time.time()
         max_accuracy = 0.0
         max_score = 0.0
-        best_val_stats = {}
+        best_val_stats, test_stats = {}, {}
         for epoch in range(args.start_epoch, args.epochs):
             if args.distributed:
                 data_loader_train.sampler.set_epoch(epoch)
@@ -1191,6 +1191,7 @@ def main(args):
                         args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
                         loss_scaler=loss_scaler, epoch=epoch)
                 best_val_stats = val_stats
+                test_stats,auc_roc, auc_pr = evaluate(data_loader_test, model, device, args.task,epoch, mode='test', num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
 
             if log_writer is not None:
                 log_writer.add_scalar('perf/val_acc1', val_stats['acc1'], epoch)
@@ -1214,9 +1215,8 @@ def main(args):
         wandb_dict = {}
         wandb_dict.update({f'best_val_{k}': v for k, v in best_val_stats.items()})
         wandb.log(wandb_dict)
-        #Load best val model for testing
-        misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
-        test_stats,auc_roc, auc_pr = evaluate(data_loader_test, model, device, args.task,epoch, mode='test', num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
+        #Load best val model for testing BUG
+        #misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
         wandb_dict = {}
         wandb_dict.update({f'test_{k}': v for k, v in test_stats.items()})
         wandb.log(wandb_dict)
