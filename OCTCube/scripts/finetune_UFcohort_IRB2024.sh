@@ -3,8 +3,8 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem-per-cpu=4gb
-#SBATCH --partition=gpu
-#SBATCH --gpus=a100:1
+#SBATCH --partition=hpg-turin
+#SBATCH --gpus=1
 #SBATCH --time=12:00:00
 #SBATCH --output=%x.%j.out
 #SBATCH --account=ruogu.fang
@@ -22,6 +22,7 @@ Eval_score=${4:-"AUC"}
 TASK_MODE=${5:-"binary_cls"}
 ADDCMD=${6:-""}
 
+# Example usage: sbatch scripts/finetune_UFcohort_IRB2024.sh AMD_all_split flash_attn_vit_large_patch16 2 AUC binary_cls --testval
 data_type="IRB2024_v2"
 ROOT=/blue/ruogu.fang
 prefix=tienyuchang
