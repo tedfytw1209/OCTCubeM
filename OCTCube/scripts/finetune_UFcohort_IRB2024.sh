@@ -2,7 +2,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem-per-cpu=4gb
+#SBATCH --mem-per-cpu=6gb
 #SBATCH --partition=hpg-turin
 #SBATCH --gpus=1
 #SBATCH --time=24:00:00
