@@ -787,7 +787,8 @@ def evaluate(data_loader, model, device, task, epoch, mode, num_class, criterion
     true_label_decode_list = np.array(true_label_decode_list)
     prediction_decode_list = np.array(prediction_decode_list)
     confusion_matrix = multilabel_confusion_matrix(true_label_decode_list, prediction_decode_list, labels=[i for i in range(num_class)])
-    acc, sensitivity, specificity, precision, G, F1, mcc, balanced_acc = misc_measures(confusion_matrix)
+    acc = accuracy_score(true_label_decode_list, prediction_decode_list)
+    _, sensitivity, specificity, precision, G, F1, mcc, balanced_acc = misc_measures(confusion_matrix)
 
 
     auc_roc = roc_auc_score(true_label_onehot_list, prediction_list, multi_class='ovr', average='macro')
