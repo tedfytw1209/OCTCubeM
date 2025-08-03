@@ -722,8 +722,6 @@ class PatientDataset3D(Dataset):
                     pad_left_tensor = torch.zeros(pad_left, frames_tensor.shape[1], frames_tensor.shape[2], frames_tensor.shape[3])
                     pad_right_tensor = torch.zeros(pad_right, frames_tensor.shape[1], frames_tensor.shape[2], frames_tensor.shape[3])
                     frames_tensor = torch.cat([pad_left_tensor, frames_tensor, pad_right_tensor], dim=0)
-
-
                 else:
                     pass
 
