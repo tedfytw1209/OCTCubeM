@@ -18,12 +18,12 @@ conda activate octcube
 STUDY=$1 #AMD_all_split 2, Cataract_all_split 2, DR_all_split 6, Glaucoma_all_split 6, DR_all_split_binary 2, Glaucoma_all_split_binary 2
 MODEL=${2:-"flash_attn_vit_large_patch16"}
 Num_CLASS=${3:-"2"}
-Eval_score=${4:-"AUPRC"}
+Eval_score=${4:-"AUC"}
 TASK_MODE=${5:-"binary_cls"}
 ADDCMD=${6:-""}
 
-# Example usage: sbatch scripts/finetune_UFcohort_IRB2024.sh AMD_all_split flash_attn_vit_large_patch16 2 AUC binary_cls --testval
-data_type="IRB2024_v2"
+# Example usage: sbatch scripts/finetune_UFcohort_IRB2024v4.sh AMD_all_split flash_attn_vit_large_patch16 2 AUPRC binary_cls --testval
+data_type="IRB2024_v4"
 ROOT=/blue/ruogu.fang
 prefix=tienyuchang
 IMG_DIR=/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/
@@ -50,7 +50,7 @@ python main_finetune_downstream_UFcohort.py --nb_classes $Num_CLASS \
     --output_dir ${OUTPUT_DIR} \
     --batch_size 4 \
     --val_batch_size 16 \
-    --warmup_epochs 5 \
+    --warmup_epochs 10 \
     --world_size 1 \
     --model $MODEL \
     --patient_dataset UFcohort \
