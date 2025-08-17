@@ -19,5 +19,4 @@ do
     echo "Running dataset: $DATASET with num_class=$NUM_CLASS"
     # Submit the job to Slurm
     sbatch $SCRIPT $DATASET $MODEL $NUM_CLASS $Eval_score $TASK_MODE $ADDCMD
-    sleep 1 # Optional: sleep to avoid overwhelming the scheduler
 done
