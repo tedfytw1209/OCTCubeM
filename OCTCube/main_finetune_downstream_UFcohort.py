@@ -1180,6 +1180,8 @@ def main(args):
             #eval score
             if args.val_metric== 'AUC':
                 e_score = val_auc_roc
+            elif args.val_metric == 'AUPRC':
+                e_score = val_auc_pr
             elif args.val_metric in val_stats:
                 e_score = val_stats[args.val_metric]
             else:
