@@ -733,11 +733,10 @@ class PatientDataset3D(Dataset):
             if self.transform and self.transform_type == 'monai_3D':
                 frames_tensor = frames_tensor.unsqueeze(0)
                 #print('Frames tensor shape before transform:', frames_tensor.shape) #Debugging line
-                if self.mode == 'rgb':
-                    frames_tensor = frames_tensor.permute(0, 2, 1, 3, 4)  # [1, 25, 3, 496, 512] → [1, 3, 25, 496, 512]
-                if frames_tensor.ndim != 4:
-                    print(f"Expect [D,C,H,W], got {frames_tensor.shape}")
-                D, C, H, W = frames_tensor.shape
+                frames_tensor = frames_tensor.permute(0, 2, 1, 3, 4)  # [1, 25, 3, 496, 512] → [1, 3, 25, 496, 512]
+                if frames_tensor.ndim != 5:
+                    print(f"Expect [B,D,C,H,W], got {frames_tensor.shape}")
+                B,D, C, H, W = frames_tensor.shape
                 if D <= 0 or H <= 0 or W <= 0:
                     print(f"Empty/invalid volume at idx={idx}, shape={frames_tensor.shape}")
                 frames_tensor = self.transform({"pixel_values": frames_tensor})["pixel_values"]
