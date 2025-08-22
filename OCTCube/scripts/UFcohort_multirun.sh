@@ -16,7 +16,7 @@ do
     DATASET="${DATASETS[$i]}"
     NUM_CLASS="${CLASSES[$i]}"
     TASK_MODE="${TASK_MODES[$i]}"
-    echo "Running dataset: $DATASET with num_class=$NUM_CLASS"
+    echo "sbatch $SCRIPT $DATASET $MODEL $NUM_CLASS $Eval_score $TASK_MODE $ADDCMD"
     # Submit the job to Slurm
-    sbatch $SCRIPT $DATASET $MODEL $NUM_CLASS $Eval_score $TASK_MODE $ADDCMD
+    #sbatch $SCRIPT $DATASET $MODEL $NUM_CLASS $Eval_score $TASK_MODE $ADDCMD
 done
