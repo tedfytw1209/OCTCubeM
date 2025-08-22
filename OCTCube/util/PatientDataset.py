@@ -676,6 +676,8 @@ class PatientDataset3D(Dataset):
 
         if self.dataset_mode == 'frame':
             frames = [Image.open(frame_path, mode='r') for frame_path in data_dict['frames']]
+            if len(frames) == 0:
+                print(f"No frames for patient/visit idx={idx}: {data_dict}")
 
             if self.mode == 'rgb':
                 frames = [frame.convert("RGB") for frame in frames]
@@ -725,18 +727,24 @@ class PatientDataset3D(Dataset):
                 else:
                     pass
 
-            if self.mode == 'gray':
-                frames_tensor = frames_tensor.squeeze(1) # Convert [D, 1, H, W] to [D, H, W] if single channel
+            #if self.mode == 'gray':
+            #    frames_tensor = frames_tensor.squeeze(1) # Convert [D, 1, H, W] to [D, H, W] if single channel
 
             if self.transform and self.transform_type == 'monai_3D':
                 frames_tensor = frames_tensor.unsqueeze(0)
                 #print('Frames tensor shape before transform:', frames_tensor.shape) #Debugging line
                 if self.mode == 'rgb':
                     frames_tensor = frames_tensor.permute(0, 2, 1, 3, 4)  # [1, 25, 3, 496, 512] → [1, 3, 25, 496, 512]
+                if frames_tensor.ndim != 4:
+                    print(f"Expect [D,C,H,W], got {frames_tensor.shape}")
+                D, C, H, W = frames_tensor.shape
+                if D <= 0 or H <= 0 or W <= 0:
+                    print(f"Empty/invalid volume at idx={idx}, shape={frames_tensor.shape}")
                 frames_tensor = self.transform({"pixel_values": frames_tensor})["pixel_values"]
                 #from [1, 25, 3, 496, 512] → [25, 3, 496, 512] → [3, 25, 496, 512]
                 #print('Frames tensor shape after transform:', frames_tensor.shape) #Debugging line
-
+            elif self.mode == 'gray':
+                frames_tensor = frames_tensor.squeeze(1)  # Convert [D, 1, H, W] to [D, H, W]
 
             if self.return_patient_id:
                 return frames_tensor, patient_id, data_dict['class_idx']
@@ -780,8 +788,8 @@ class PatientDataset3D(Dataset):
                     pad_size = self.max_frames - num_frames
                     pad_left = pad_size // 2
                     pad_right = pad_size - pad_left
-                    pad_left_tensor = torch.zeros(pad_left, frames_tensor.shape[1], frames_tensor.shape[2], frames_tensor.shape[3])
-                    pad_right_tensor = torch.zeros(pad_right, frames_tensor.shape[1], frames_tensor.shape[2], frames_tensor.shape[3])
+                    pad_left_tensor = torch.zeros(pad_left, volume.shape[1], volume.shape[2], volume.shape[3])
+                    pad_right_tensor = torch.zeros(pad_right, volume.shape[1], volume.shape[2], volume.shape[3])
                     volume = torch.cat([pad_left_tensor, volume, pad_right_tensor], dim=0)
 
                 else:
