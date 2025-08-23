@@ -726,19 +726,15 @@ class PatientDataset3D(Dataset):
                     frames_tensor = torch.cat([pad_left_tensor, frames_tensor, pad_right_tensor], dim=0)
                 else:
                     pass
-
-            #if self.mode == 'gray':
-            #    frames_tensor = frames_tensor.squeeze(1) # Convert [D, 1, H, W] to [D, H, W] if single channel
-            assert frames_tensor.ndim == 4, f"expect [D,C,H,W], got {frames_tensor.shape}"
-            print('Frames tensor shape before transform:', frames_tensor.shape) #Debugging line
+            print(frames_tensor.shape)
+            if self.mode == 'gray':
+                frames_tensor = frames_tensor.squeeze(1)
+            print(frames_tensor.shape)
             if self.transform and self.transform_type == 'monai_3D':
-                #frames_tensor = frames_tensor.unsqueeze(0)
-                frames_tensor = frames_tensor.permute(1, 0, 2, 3)  # [25, 1, 496, 512] → [1, 25, 496, 512]
+                frames_tensor = frames_tensor.unsqueeze(0)
                 print(frames_tensor.shape)
                 frames_tensor = self.transform({"pixel_values": frames_tensor})["pixel_values"]
-                print('Frames tensor shape after transform:', frames_tensor.shape) #Debugging line
-            elif self.mode == 'gray':
-                frames_tensor = frames_tensor.squeeze(1)  # Convert [D, 1, H, W] to [D, H, W]
+            print(frames_tensor.shape)
 
             if self.return_patient_id:
                 return frames_tensor, patient_id, data_dict['class_idx']
