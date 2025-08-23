@@ -62,7 +62,7 @@ python main_finetune_downstream_UFcohort.py --nb_classes $Num_CLASS \
     --layer_decay 0.65 \
     --weight_decay 0.05 \
     --drop_path 0.2 \
-    --num_workers 8 \
+    --num_workers 0 \
     --finetune $ROOT/$prefix/OCTCubeM/ckpt/OCTCube.pth \
     --return_bal_acc \
     --not_print_logits \
