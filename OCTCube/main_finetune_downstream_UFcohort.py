@@ -105,7 +105,7 @@ def get_args_parser():
     parser.set_defaults(sep_pos_embed=True)
     parser.add_argument("--cls_embed", action="store_true")
     parser.set_defaults(cls_embed=True)
-    parser.add_argument("--transform_type", default="volume_3D", type=str, choices=['3D', 'Center2D', 'Center2D_flash_attn',  '3D_flash_attn', '3D_st', '3D_st_joint', '3D_st_flash_attn', '3D_st_joint_flash_attn', '3D_st_flash_attn_nodrop', 'convnext_slivit']) # only glaucoma has volume_3D transform
+    parser.add_argument("--transform_type", default="volume_3D", type=str, choices=["frame_2D", "monai_3D", "volume_3D"]) # only glaucoma has volume_3D transform
     parser.add_argument("--color_mode", default="rgb", type=str, choices=["rgb", "gray"])
     parser.add_argument("--smaller_temporal_crop", default='interp', type=str, choices=['interp', 'crop'], help='interpolation type for temporal position embedding')
 
