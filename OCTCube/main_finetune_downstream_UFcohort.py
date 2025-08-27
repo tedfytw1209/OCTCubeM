@@ -1071,8 +1071,13 @@ def main(args):
             print("checkpoint keys: ", list(checkpoint.keys()))
             if 'model' in list(checkpoint.keys()):
                 checkpoint_model = checkpoint['model']
+            #TMP FOR mm_octcube_ir.pt
             elif 'state_dict' in list(checkpoint.keys()):
                 checkpoint_model = checkpoint['state_dict']
+                checkpoint_model = {k.replace('module.', '', 1): v for k, v in checkpoint_model.items()}
+                checkpoint_model = {k.replace('visual.', '', 1): v for k, v in checkpoint_model.items() if k.startswith('visual.')}
+                if 'pos_embed_spatial' in checkpoint_model and 'pos_embed' not in checkpoint_model:
+                    checkpoint_model['pos_embed'] = checkpoint_model.pop('pos_embed_spatial')
             else:
                 checkpoint_model = checkpoint
             state_dict = model.state_dict()
