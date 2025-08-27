@@ -42,7 +42,7 @@ from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from util.pos_embed import interpolate_pos_embed, interpolate_temporal_pos_embed
 from util.WeightedLabelSmoothingCrossEntropy import WeightedLabelSmoothingCrossEntropy
 
-from util.PatientDataset import TransformableSubset, PatientDataset3D, PatientDatasetCenter2D
+from util.PatientDataset import TransformableSubset, PatientDataset3D, PatientDatasetCenter2D, PatientDataset2D
 from util.PatientDataset_inhouse import create_3d_transforms
 from util.datasets import build_transform
 
@@ -322,6 +322,10 @@ def main(args):
             dataset_train = PatientDatasetCenter2D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, csv_path=args.csv_path, is_train=tr_istrain)
             dataset_val = PatientDatasetCenter2D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, csv_path=args.csv_path, is_train=val_istrain)
             dataset_test = PatientDatasetCenter2D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, csv_path=args.csv_path, is_train='test')
+        elif args.patient_dataset_type == '2D' or args.patient_dataset_type == '2D_flash_attn':
+            dataset_train = PatientDataset2D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, csv_path=args.csv_path, is_train=tr_istrain)
+            dataset_val = PatientDataset2D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, csv_path=args.csv_path, is_train=val_istrain)
+            dataset_test = PatientDataset2D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, csv_path=args.csv_path, is_train='test')
 
         dataset_train.update_transform(train_transform)
         dataset_val.update_transform(val_transform)
@@ -979,14 +983,14 @@ def main(args):
                 drop_path_rate=args.drop_path,
                 global_pool=args.global_pool,
             )
-        elif args.patient_dataset_type == 'Center2D':
+        elif args.patient_dataset_type == 'Center2D' or args.patient_dataset_type == '2D':
             model = models_vit.__dict__[args.model](
                 img_size=args.input_size,
                 num_classes=args.nb_classes,
                 drop_path_rate=args.drop_path,
                 global_pool=args.global_pool,
             )
-        elif args.patient_dataset_type == 'Center2D_flash_attn':
+        elif args.patient_dataset_type == 'Center2D_flash_attn' or args.patient_dataset_type == '2D_flash_attn':
             model = models_vit_flash_attn.__dict__[args.model](
                 img_size=args.input_size,
                 num_classes=args.nb_classes,
@@ -1111,7 +1115,7 @@ def main(args):
                     assert set(msg.missing_keys) == {'fc_aggregate_cls.weight', 'fc_aggregate_cls.bias',
                     'aggregate_cls_norm.weight', 'aggregate_cls_norm.bias',
                     'head.weight', 'head.bias'}
-                elif args.patient_dataset_type == 'Center2D' or args.patient_dataset_type == 'Center2D_flash_attn':
+                elif args.patient_dataset_type == 'Center2D' or args.patient_dataset_type == 'Center2D_flash_attn' or args.patient_dataset_type == '2D' or args.patient_dataset_type == '2D_flash_attn':
                     assert set(msg.missing_keys) == {'head.weight', 'head.bias', 'fc_norm.weight', 'fc_norm.bias'}
                 elif args.patient_dataset_type == '3D_st' or args.patient_dataset_type == '3D_st_joint' or args.patient_dataset_type == '3D_st_flash_attn' or args.patient_dataset_type == '3D_st_joint_flash_attn':
                     assert set(msg.missing_keys) == {'head.weight', 'head.bias'}
