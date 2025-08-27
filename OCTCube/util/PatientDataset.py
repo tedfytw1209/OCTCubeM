@@ -1030,10 +1030,14 @@ class PatientDatasetCenter2D(Dataset):
                 self.visits_dict = None
                 self.mapping_patient2visit = None
                 self.mapping_visit2patient = None
+                print('Number of patients: ', len(self.patients))
+                print('Sample datadict: ', self.patients[0])
             elif self.iterate_mode == 'visit':
-
                 self.patients, self.class_to_idx, self.visits_dict, self.mapping_patient2visit = get_patients_func(patient_idx_loc)
                 self.mapping_visit2patient = {visit_idx: patient_id for patient_id, visit_idx_list in self.mapping_patient2visit.items() for visit_idx in visit_idx_list}
+                print('Number of patients: ', len(self.patients))
+                print('Number of visits: ', len(self.visits_dict) if self.visits_dict is not None else 0)
+                print('Sample datadict: ', self.visits_dict[0])
 
         elif self.dataset_mode == 'volume':
             self.patients, self.class_to_idx, self.visits_dict, self.mapping_patient2visit = get_patients_func(patient_idx_loc)
