@@ -24,6 +24,7 @@ ADDCMD=${6:-""}
 
 # Example usage: sbatch scripts/finetune_UFcohort_IRB2024v4.sh AMD_all_split flash_attn_vit_large_patch16 2 AUPRC binary_cls --testval
 data_type="IRB2024_v4"
+dataset_type="3D_st_flash_attn_nodrop"
 ROOT=/blue/ruogu.fang
 prefix=tienyuchang
 IMG_DIR=/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/
@@ -54,7 +55,7 @@ python main_finetune_downstream_UFcohort.py --nb_classes $Num_CLASS \
     --world_size 1 \
     --model $MODEL \
     --patient_dataset UFcohort \
-    --patient_dataset_type 3D_st_flash_attn_nodrop \
+    --patient_dataset_type $dataset_type \
     --transform_type monai_3D \
     --color_mode gray \
     --epochs 100 \
