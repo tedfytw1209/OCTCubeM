@@ -1076,8 +1076,6 @@ def main(args):
                 checkpoint_model = checkpoint['state_dict']
                 checkpoint_model = {k.replace('module.', '', 1): v for k, v in checkpoint_model.items()}
                 checkpoint_model = {k.replace('visual.', '', 1): v for k, v in checkpoint_model.items() if k.startswith('visual.')}
-                if 'pos_embed_temporal' in checkpoint_model and 'pos_embed' not in checkpoint_model:
-                    checkpoint_model['pos_embed'] = checkpoint_model.pop('pos_embed_temporal')
             else:
                 checkpoint_model = checkpoint
             state_dict = model.state_dict()
