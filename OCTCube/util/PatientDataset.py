@@ -1714,7 +1714,18 @@ class PatientDatasetCenter2D(Dataset):
                 return frame, data_dict['class_idx'], (middle_index, num_frames)
             else:
                 return frame, data_dict['class_idx'], patient_id, (middle_index, num_frames)
+    
+    def update_transform(self, transform):
+        self.transform = transform
+        
+    def update_dataset_transform(self, transform):
+        self.transform = transform
 
+    def remove_dataset_transform(self):
+        self.transform = None
+
+    def update_indices(self, indices):
+        self.indices = indices
 
 def get_aireadi_patient_dict(participants_df, oct_manifest_df, label_mapping, verbose=False):
     patient_dict = {}
