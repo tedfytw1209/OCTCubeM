@@ -24,12 +24,13 @@ ADDCMD=${6:-""}
 
 # Example usage: sbatch scripts/finetune_UFcohort_IRB2024v4_2D.sh AMD_all_split flash_attn_vit_large_patch16 2 AUPRC binary_cls --testval
 data_type="IRB2024_v4"
+dataset_type="2D_flash_attn"
 ROOT=/blue/ruogu.fang
 prefix=tienyuchang
 IMG_DIR=/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/
 CSV_DIR=/orange/ruogu.fang/tienyuchang/OCTRFF_Data/data/UF-cohort/${data_type}/split/tune5-eval5/${STUDY}.csv
 LOG_DIR=$ROOT/log_pt/
-OUTPUT_DIR=./outputs_ft_st/UFcohort_${STUDY}_${data_type}_${TASK_MODE}${ADDCMD}/
+OUTPUT_DIR=./outputs_ft_st/UFcohort_${STUDY}_${data_type}_${dataset_type}_${TASK_MODE}${ADDCMD}/
 python main_finetune_downstream_UFcohort.py --nb_classes $Num_CLASS \
     --data_path $IMG_DIR \
     --csv_path $CSV_DIR \

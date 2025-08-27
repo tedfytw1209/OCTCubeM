@@ -149,10 +149,14 @@ class PatientDataset3D(Dataset):
                 self.visits_dict = None
                 self.mapping_patient2visit = None
                 self.mapping_visit2patient = None
+                labels = pd.Series([data_dict['class_idx'] for data_dict in self.patients])
+                print(labels.value_counts())
             elif self.iterate_mode == 'visit':
                 # raise ValueError('iterate_mode cannot be visit for frame dataset')
                 self.patients, self.class_to_idx, self.visits_dict, self.mapping_patient2visit = get_patients_func(patient_idx_loc)
                 self.mapping_visit2patient = {visit_idx: patient_id for patient_id, visit_idx_list in self.mapping_patient2visit.items() for visit_idx in visit_idx_list}
+                labels = pd.Series([data_dict['class_idx'] for data_dict in self.visits_dict])
+                print(labels.value_counts())
         elif self.dataset_mode == 'volume':
             self.patients, self.class_to_idx, self.visits_dict, self.mapping_patient2visit = get_patients_func(patient_idx_loc)
             self.mapping_visit2patient = {visit_idx: patient_id for patient_id, visit_idx_list in self.mapping_patient2visit.items() for visit_idx in visit_idx_list}
