@@ -1076,6 +1076,8 @@ def main(args):
                 checkpoint_model = checkpoint['state_dict']
                 checkpoint_model = {k.replace('module.', '', 1): v for k, v in checkpoint_model.items()}
                 checkpoint_model = {k.replace('text.', '', 1): v for k, v in checkpoint_model.items() if k.startswith('text.')}
+                for drop_k in ['head.weight', 'head.bias', 'fc_norm.weight', 'fc_norm.bias']:
+                    checkpoint_model.pop(drop_k, None)
             else:
                 checkpoint_model = checkpoint
             state_dict = model.state_dict()
