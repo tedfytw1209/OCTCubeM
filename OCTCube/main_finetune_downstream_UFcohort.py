@@ -1075,7 +1075,7 @@ def main(args):
             elif 'state_dict' in list(checkpoint.keys()):
                 checkpoint_model = checkpoint['state_dict']
                 checkpoint_model = {k.replace('module.', '', 1): v for k, v in checkpoint_model.items()}
-                checkpoint_model = {k.replace('text.', '', 1): v for k, v in checkpoint_model.items() if k.startswith('visual.')}
+                checkpoint_model = {k.replace('text.', '', 1): v for k, v in checkpoint_model.items() if k.startswith('text.')}
             else:
                 checkpoint_model = checkpoint
             state_dict = model.state_dict()
