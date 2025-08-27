@@ -105,7 +105,7 @@ def get_args_parser():
     parser.set_defaults(sep_pos_embed=True)
     parser.add_argument("--cls_embed", action="store_true")
     parser.set_defaults(cls_embed=True)
-    parser.add_argument("--transform_type", default="volume_3D", type=str, choices=["volume_3D", "monai_3D"]) # only glaucoma has volume_3D transform
+    parser.add_argument("--transform_type", default="volume_3D", type=str, choices=['3D', 'Center2D', 'Center2D_flash_attn',  '3D_flash_attn', '3D_st', '3D_st_joint', '3D_st_flash_attn', '3D_st_joint_flash_attn', '3D_st_flash_attn_nodrop', 'convnext_slivit']) # only glaucoma has volume_3D transform
     parser.add_argument("--color_mode", default="rgb", type=str, choices=["rgb", "gray"])
     parser.add_argument("--smaller_temporal_crop", default='interp', type=str, choices=['interp', 'crop'], help='interpolation type for temporal position embedding')
 
@@ -300,7 +300,7 @@ def main(args):
             val_transform = train_transform
         elif args.transform_type == 'monai_3D':
             train_transform, val_transform = create_3d_transforms(**vars(args))
-        else:
+        elif args.transform_type == 'frame_2D':
             train_transform = build_transform(is_train='train', args=args)
             val_transform = build_transform(is_train='val', args=args)
             if args.not_use_2d_aug:
