@@ -1069,7 +1069,12 @@ def main(args):
 
             print("Load pre-trained checkpoint from: %s" % args.finetune)
             print("checkpoint keys: ", list(checkpoint.keys()))
-            checkpoint_model = checkpoint['model']
+            if 'model' in list(checkpoint.keys()):
+                checkpoint_model = checkpoint['model']
+            elif 'state_dict' in list(checkpoint.keys()):
+                checkpoint_model = checkpoint['state_dict']
+            else:
+                checkpoint_model = checkpoint
             state_dict = model.state_dict()
             for k in ['head.weight', 'head.bias']:
                 if k in checkpoint_model and checkpoint_model[k].shape != state_dict[k].shape:
