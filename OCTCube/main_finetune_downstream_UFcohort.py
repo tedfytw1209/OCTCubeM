@@ -114,7 +114,7 @@ def get_args_parser():
     parser.add_argument('--data_path', default=home_directory + dataset_path, type=str, help='dataset path')
     parser.add_argument('--csv_path', default=home_directory + dataset_path, type=str, help='csv path')
     parser.add_argument('--patient_dataset', default='', type=str, help='Use patient dataset')
-    parser.add_argument('--patient_dataset_type', default='Center2D', type=str, choices=['3D', 'Center2D', 'Center2D_flash_attn',  '3D_flash_attn', '3D_st', '3D_st_joint', '3D_st_flash_attn', '3D_st_joint_flash_attn', '3D_st_flash_attn_nodrop', 'convnext_slivit'], help='patient dataset type')
+    parser.add_argument('--patient_dataset_type', default='Center2D', type=str, choices=['3D', 'Center2D', 'Center2D_flash_attn', '2D', '2D_flash_attn',  '3D_flash_attn', '3D_st', '3D_st_joint', '3D_st_flash_attn', '3D_st_joint_flash_attn', '3D_st_flash_attn_nodrop', 'convnext_slivit'], help='patient dataset type')
     parser.add_argument('--dataset_mode', default='volume', type=str, choices=['frame', 'volume'], help='dataset mode for the patient dataset')
     parser.add_argument('--iterate_mode', default='visit', type=str, choices=['visit', 'patient'], help='iterate mode for the patient dataset, glaucome uses visit')
     parser.add_argument('--name_split_char', default='-', type=str, help='split character for the image filename')
