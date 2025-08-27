@@ -734,7 +734,12 @@ class PatientDataset3D(Dataset):
                 frames_tensor = frames_tensor.squeeze(1)
             if self.transform and self.transform_type == 'monai_3D':
                 frames_tensor = frames_tensor.unsqueeze(0)
-                frames_tensor = self.transform({"pixel_values": frames_tensor})["pixel_values"]
+                try:
+                    frames_tensor = self.transform({"pixel_values": frames_tensor})["pixel_values"]
+                except Exception as e:
+                    print(f"Error occurred during transformation: {e}")
+                    print(f"Frames tensor shape before transform: {frames_tensor.shape}")
+                    print('frames name:', data_dict['frames'])
 
             if self.return_patient_id:
                 return frames_tensor, patient_id, data_dict['class_idx']
