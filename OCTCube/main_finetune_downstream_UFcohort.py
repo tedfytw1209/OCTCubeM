@@ -1068,6 +1068,7 @@ def main(args):
             checkpoint = torch.load(args.finetune, map_location='cpu')
 
             print("Load pre-trained checkpoint from: %s" % args.finetune)
+            print("checkpoint keys: ", list(checkpoint.keys()))
             checkpoint_model = checkpoint['model']
             state_dict = model.state_dict()
             for k in ['head.weight', 'head.bias']:
