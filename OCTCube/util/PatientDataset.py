@@ -1400,13 +1400,15 @@ class PatientDatasetCenter2D(Dataset):
                     cls_dir = row['label']
                     patient_id = row['patient_id']
                     slice_indices = row['slice_indices'].split('-')
+                    slice_num = row['slice_num']
                     #if new patient_id, add to patients
                     unique_patient_id = f"{cls_dir}_{patient_id}" if self.cls_unique else patient_id
                     if unique_patient_id not in patients:
                         patients[unique_patient_id] = {
                             'class_idx': class_to_idx[cls_dir],
                             'class': cls_dir,
-                            'frames': []
+                            'frames': [],
+                            'slice_num': slice_num
                         }
                     for slice_idx in slice_indices:
                         img_name = f"{row['oct_imgname']}_{eye}_{slice_idx}.jpg"
@@ -1428,6 +1430,7 @@ class PatientDatasetCenter2D(Dataset):
                     cls_dir = row['label']
                     patient_id = row['patient_id']
                     eye = row['eye']
+                    slice_num = row['slice_num']
                     if 'lat' not in eye:
                         eye = 'lat' + eye
                     slice_indices = row['slice_indices'].split('-')
@@ -1455,7 +1458,8 @@ class PatientDatasetCenter2D(Dataset):
                         visits_dict[visit_idx] = {
                             'class_idx': class_to_idx[cls_dir],
                             'class': cls_dir,
-                            'frames': visit_frames.copy()
+                            'frames': visit_frames.copy(),
+                            'slice_num': slice_num
                         }
                         visit_idx += 1
                     else: #Multiple images in one visit: Seperate them
@@ -1479,7 +1483,8 @@ class PatientDatasetCenter2D(Dataset):
                         visits_dict[visit_idx] = {
                             'class_idx': class_to_idx[cls_dir],
                             'class': cls_dir,
-                            'frames': visit_frames.copy()
+                            'frames': visit_frames.copy(),
+                            'slice_num': slice_num
                         }
                         visit_idx += 1
                             
@@ -1730,6 +1735,170 @@ class PatientDatasetCenter2D(Dataset):
 
     def update_indices(self, indices):
         self.indices = indices
+
+class PatientDataset2D(PatientDatasetCenter2D):
+    """2D Patient Dataset
+    Only Frame mode
+    
+    Args:
+        PatientDatasetCenter2D (PatientDatasetCenter2D): Base class for 2D patient dataset.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    def _get_patients_from_csv(self, patient_idx_loc):
+        patients = {}
+        class_names = sorted(self.data_frame['label'].unique())
+        class_to_idx = {cls_name: idx for idx, cls_name in enumerate(class_names)}
+
+        if self.dataset_mode == 'frame':
+            if self.iterate_mode == 'patient':
+                for i, row in self.data_frame.iterrows():
+                    cls_dir = row['label']
+                    patient_id = row['patient_id']
+                    slice_indices = row['slice_indices'].split('-')
+                    img_name = row['fundus_imgname']
+                    #if new patient_id, add to patients
+                    unique_patient_id = f"{cls_dir}_{patient_id}" if self.cls_unique else patient_id
+                    if unique_patient_id not in patients:
+                        patients[unique_patient_id] = {
+                            'class_idx': class_to_idx[cls_dir],
+                            'class': cls_dir,
+                            'frames': []
+                        }
+                    '''
+                    for slice_idx in slice_indices:
+                        img_name = f"{row['oct_imgname']}_{eye}_{slice_idx}.jpg"
+                        img_path = os.path.join(self.root_dir, row['folder'], img_name)
+                        patients[unique_patient_id]['frames'].append(img_path)
+                    '''
+                    img_path = os.path.join(self.root_dir, row['folder'], img_name)
+                    patients[unique_patient_id]['frames'].append(img_path)
+                # Sorting patients by patient_id
+                patients = dict(sorted(patients.items(), key=lambda x: x[0]))
+                if self.random_shuffle_patient:
+                    rng = np.random.default_rng(seed=0)
+                    patients = dict(rng.permutation(list(patients.items())))
+                return patients, class_to_idx
+            elif self.iterate_mode == 'visit':
+                visits_dict = {}
+                mapping_patient2visit = {}
+                visit_idx = 0
+                visit_id_map2visit_idx = {}
+
+                for i, row in self.data_frame.iterrows():
+                    cls_dir = row['label']
+                    patient_id = row['patient_id']
+                    eye = row['eye']
+                    slice_num = row['slice_num']
+                    img_name = row['fundus_imgname']
+                    if 'lat' not in eye:
+                        eye = 'lat' + eye
+                    slice_indices = row['slice_indices'].split('-')
+                    visit_id = row['folder']
+                    unique_patient_id = f"{cls_dir}_{patient_id}" if self.cls_unique else patient_id
+                    unique_visit_id = visit_id + self.name_split_char + eye
+
+                    if unique_visit_id not in visit_id_map2visit_idx:
+                        visit_id_map2visit_idx[unique_visit_id] = visit_idx
+                        mapping_patient2visit.setdefault(unique_patient_id, []).append(visit_idx)
+                        visit_frames = []
+                        '''
+                        for slice_idx in slice_indices:
+                            img_name = f"{row['oct_imgname']}_{eye}_{slice_idx}.jpg"
+                            img_path = os.path.join(self.root_dir, visit_id, img_name)
+                            visit_frames.append(img_path)
+                        '''
+                        img_path = os.path.join(self.root_dir, row['folder'], img_name)
+                        visit_frames.append(img_path)
+
+                        patients.setdefault(unique_patient_id, {
+                            'visit_id': [], 'class_idx': [], 'class': [], 'frames': []
+                        })
+                        patients[unique_patient_id]['visit_id'].append(unique_visit_id)
+                        patients[unique_patient_id]['class_idx'].append(class_to_idx[cls_dir])
+                        patients[unique_patient_id]['class'].append(cls_dir)
+                        patients[unique_patient_id]['frames'].append(visit_frames)
+
+                        visits_dict[visit_idx] = {
+                            'class_idx': class_to_idx[cls_dir],
+                            'class': cls_dir,
+                            'frames': visit_frames.copy()
+                        }
+                        visit_idx += 1
+                    else: #Multiple images in one visit: Seperate them
+                        unique_visit_id = visit_id + self.name_split_char + str(visit_idx)
+                        visit_id_map2visit_idx[unique_visit_id] = visit_idx
+                        mapping_patient2visit.setdefault(unique_patient_id, []).append(visit_idx)
+                        visit_frames = []
+                        '''
+                        for slice_idx in slice_indices:
+                            img_name = f"{row['oct_imgname']}_{eye}_{slice_idx}.jpg"
+                            img_path = os.path.join(self.root_dir, visit_id, img_name)
+                            visit_frames.append(img_path)
+                        '''
+                        img_path = os.path.join(self.root_dir, row['folder'], img_name)
+                        visit_frames.append(img_path)
+                        
+                        patients.setdefault(unique_patient_id, {
+                            'visit_id': [], 'class_idx': [], 'class': [], 'frames': []
+                        })
+                        patients[unique_patient_id]['visit_id'].append(unique_visit_id)
+                        patients[unique_patient_id]['class_idx'].append(class_to_idx[cls_dir])
+                        patients[unique_patient_id]['class'].append(cls_dir)
+                        patients[unique_patient_id]['frames'].append(visit_frames)
+
+                        visits_dict[visit_idx] = {
+                            'class_idx': class_to_idx[cls_dir],
+                            'class': cls_dir,
+                            'frames': visit_frames.copy()
+                        }
+                        visit_idx += 1
+                ## Already sort the frames
+                self.visit_id_map2visit_idx = visit_id_map2visit_idx
+                return patients, class_to_idx, visits_dict, mapping_patient2visit
+    def __getitem__(self, idx):
+
+        if self.iterate_mode == 'patient':
+            patient_id = list(self.patients.keys())[idx]
+            data_dict = self.patients[patient_id]
+        elif self.iterate_mode == 'visit':
+            data_dict = self.visits_dict[idx]
+            patient_id = self.mapping_visit2patient[idx]
+
+        if self.dataset_mode == 'frame':
+            # Select first frame 
+            frame_path = data_dict['frames'][0]
+            # Load frame as 3 channel image
+            frame = Image.open(frame_path, mode='r')
+            if self.mode == 'gray':
+                frame = frame.convert("L")
+            elif self.mode == 'rgb':
+                frame = frame.convert("RGB")
+
+            if self.downsample_width:
+                if frame.size[0] == 1024:
+                    frame = frame.resize((512, frame.size[1]))
+                if frame.size[1] == 1024 or frame.size[1] == 1536:
+                    frame = frame.resize((frame.size[0], frame.size[1] // 2))
+
+            if self.transform:
+                frame = self.transform(frame)
+
+
+            # Convert frame to tensor (if not already done by transform)
+            if self.convert_to_tensor and not isinstance(frame, torch.Tensor):
+                frame = torch.tensor(np.array(frame), dtype=torch.float32)
+                frame = frame.permute(2, 0, 1)
+                print(frame.shape)
+
+            if not self.out_frame_idx and not self.return_patient_id:
+                return frame, data_dict['class_idx']
+            elif not self.out_frame_idx and self.return_patient_id:
+                return frame, data_dict['class_idx'], patient_id
+            elif self.out_frame_idx and not self.return_patient_id:
+                return frame, data_dict['class_idx'], (0, 1)
+            else:
+                return frame, data_dict['class_idx'], patient_id, (0, 1)
 
 def get_aireadi_patient_dict(participants_df, oct_manifest_df, label_mapping, verbose=False):
     patient_dict = {}

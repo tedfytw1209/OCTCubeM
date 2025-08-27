@@ -54,7 +54,7 @@ python main_finetune_downstream_UFcohort.py --nb_classes $Num_CLASS \
     --world_size 1 \
     --model $MODEL \
     --patient_dataset UFcohort \
-    --patient_dataset_type Center2D_flash_attn \
+    --patient_dataset_type 2D_flash_attn \
     --transform_type frame_2D \
     --color_mode gray \
     --epochs 100 \
