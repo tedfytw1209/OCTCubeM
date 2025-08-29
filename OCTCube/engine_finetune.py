@@ -241,7 +241,27 @@ def misc_measures_multi_task(y_true, y_pred, threshold=0.5, multi_task_type='mul
     print('return_dict:', return_dict)
     return return_dict
 
+def safe_macro_roc_auc(y_true_onehot, y_pred, multi_class='ovr', average='macro'):
+    y_true = np.array(y_true_onehot)
+    y_pred = np.array(y_pred)
 
+    # filter class
+    valid_classes = y_true.sum(axis=0) > 0
+    y_true_valid = y_true[:, valid_classes]
+    y_pred_valid = y_pred[:, valid_classes]
+
+    try:
+        auc = roc_auc_score(
+            y_true_valid,
+            y_pred_valid,
+            multi_class=multi_class,
+            average=average
+        )
+    except ValueError as e:
+        print(f"[Warning] ROC AUC error: {e}")
+        auc = np.nan
+
+    return auc
 
 
 
@@ -792,7 +812,11 @@ def evaluate(data_loader, model, device, task, epoch, mode, num_class, criterion
 
     print(true_label_onehot_list[:20])
     print(prediction_list[:20])
-    auc_roc = roc_auc_score(true_label_onehot_list, prediction_list, multi_class='ovr', average='macro')
+    try:
+        auc_roc = roc_auc_score(true_label_onehot_list, prediction_list, multi_class='ovr', average='macro')
+    except Exception as e:
+        print(f"[Warning] ROC AUC 計算失敗: {e}")
+        auc_roc = safe_macro_roc_auc(true_label_onehot_list, prediction_list, multi_class='ovr', average='macro')
     auc_pr = average_precision_score(true_label_onehot_list, prediction_list, average='macro')
     metric_logger.synchronize_between_processes()
 
