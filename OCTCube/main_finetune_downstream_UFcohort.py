@@ -42,7 +42,7 @@ from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from util.pos_embed import interpolate_pos_embed, interpolate_temporal_pos_embed
 from util.WeightedLabelSmoothingCrossEntropy import WeightedLabelSmoothingCrossEntropy
 
-from util.PatientDataset import TransformableSubset, PatientDataset3D, PatientDatasetCenter2D
+from util.PatientDataset import TransformableSubset, PatientDataset3D, PatientDatasetCenter2D, PatientDataset2D
 from util.PatientDataset_inhouse import create_3d_transforms
 from util.datasets import build_transform
 
@@ -105,7 +105,7 @@ def get_args_parser():
     parser.set_defaults(sep_pos_embed=True)
     parser.add_argument("--cls_embed", action="store_true")
     parser.set_defaults(cls_embed=True)
-    parser.add_argument("--transform_type", default="volume_3D", type=str, choices=["volume_3D", "monai_3D"]) # only glaucoma has volume_3D transform
+    parser.add_argument("--transform_type", default="volume_3D", type=str, choices=["frame_2D", "monai_3D", "volume_3D"]) # only glaucoma has volume_3D transform
     parser.add_argument("--color_mode", default="rgb", type=str, choices=["rgb", "gray"])
     parser.add_argument("--smaller_temporal_crop", default='interp', type=str, choices=['interp', 'crop'], help='interpolation type for temporal position embedding')
 
@@ -114,7 +114,7 @@ def get_args_parser():
     parser.add_argument('--data_path', default=home_directory + dataset_path, type=str, help='dataset path')
     parser.add_argument('--csv_path', default=home_directory + dataset_path, type=str, help='csv path')
     parser.add_argument('--patient_dataset', default='', type=str, help='Use patient dataset')
-    parser.add_argument('--patient_dataset_type', default='Center2D', type=str, choices=['3D', 'Center2D', 'Center2D_flash_attn',  '3D_flash_attn', '3D_st', '3D_st_joint', '3D_st_flash_attn', '3D_st_joint_flash_attn', '3D_st_flash_attn_nodrop', 'convnext_slivit'], help='patient dataset type')
+    parser.add_argument('--patient_dataset_type', default='Center2D', type=str, choices=['3D', 'Center2D', 'Center2D_flash_attn', '2D', '2D_flash_attn',  '3D_flash_attn', '3D_st', '3D_st_joint', '3D_st_flash_attn', '3D_st_joint_flash_attn', '3D_st_flash_attn_nodrop', 'convnext_slivit'], help='patient dataset type')
     parser.add_argument('--dataset_mode', default='volume', type=str, choices=['frame', 'volume'], help='dataset mode for the patient dataset')
     parser.add_argument('--iterate_mode', default='visit', type=str, choices=['visit', 'patient'], help='iterate mode for the patient dataset, glaucome uses visit')
     parser.add_argument('--name_split_char', default='-', type=str, help='split character for the image filename')
@@ -292,6 +292,7 @@ def main(args):
         dataset_test = build_dataset(is_train='test', args=args)
         assert args.k_fold is False
     elif args.patient_dataset=='UFcohort':
+        #transform
         if args.transform_type == 'volume_3D':
             train_transform = video_transforms.Compose([
                 video_transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
@@ -299,16 +300,33 @@ def main(args):
             val_transform = train_transform
         elif args.transform_type == 'monai_3D':
             train_transform, val_transform = create_3d_transforms(**vars(args))
+        elif args.transform_type == 'frame_2D':
+            train_transform = build_transform(is_train='train', args=args)
+            val_transform = build_transform(is_train='val', args=args)
+            if args.not_use_2d_aug:
+                train_transform = build_transform(is_train='val', args=args)
+                val_transform = build_transform(is_train='val', args=args)
+        #dataset
         if not args.testval:
             tr_istrain = 'train'
             val_istrain = 'val'
         else:
             tr_istrain = ['train', 'val']
             val_istrain = 'test'
-        #[B, C, T, H, W]
-        dataset_train = PatientDataset3D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, max_frames=args.max_frames, mode=args.color_mode, transform_type=args.transform_type, volume_resize=args.input_size, same_3_frames=args.same_3_frames, csv_path=args.csv_path, is_train=tr_istrain)
-        dataset_val = PatientDataset3D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, max_frames=args.max_frames, mode=args.color_mode, transform_type=args.transform_type, volume_resize=args.input_size, same_3_frames=args.same_3_frames, csv_path=args.csv_path, is_train=val_istrain)
-        dataset_test = PatientDataset3D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, max_frames=args.max_frames, mode=args.color_mode, transform_type=args.transform_type, volume_resize=args.input_size, same_3_frames=args.same_3_frames, csv_path=args.csv_path, is_train='test')
+        if args.patient_dataset_type == '3D' or args.patient_dataset_type == '3D_st' or args.patient_dataset_type.startswith('3D') or args.patient_dataset_type == 'convnext_slivit':
+            #[B, C, T, H, W]
+            dataset_train = PatientDataset3D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, max_frames=args.max_frames, mode=args.color_mode, transform_type=args.transform_type, volume_resize=args.input_size, same_3_frames=args.same_3_frames, csv_path=args.csv_path, is_train=tr_istrain)
+            dataset_val = PatientDataset3D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, max_frames=args.max_frames, mode=args.color_mode, transform_type=args.transform_type, volume_resize=args.input_size, same_3_frames=args.same_3_frames, csv_path=args.csv_path, is_train=val_istrain)
+            dataset_test = PatientDataset3D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, max_frames=args.max_frames, mode=args.color_mode, transform_type=args.transform_type, volume_resize=args.input_size, same_3_frames=args.same_3_frames, csv_path=args.csv_path, is_train='test')
+        elif args.patient_dataset_type == 'Center2D' or args.patient_dataset_type == 'Center2D_flash_attn':
+            dataset_train = PatientDatasetCenter2D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, csv_path=args.csv_path, is_train=tr_istrain)
+            dataset_val = PatientDatasetCenter2D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, csv_path=args.csv_path, is_train=val_istrain)
+            dataset_test = PatientDatasetCenter2D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, csv_path=args.csv_path, is_train='test')
+        elif args.patient_dataset_type == '2D' or args.patient_dataset_type == '2D_flash_attn':
+            dataset_train = PatientDataset2D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, csv_path=args.csv_path, is_train=tr_istrain)
+            dataset_val = PatientDataset2D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, csv_path=args.csv_path, is_train=val_istrain)
+            dataset_test = PatientDataset2D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, csv_path=args.csv_path, is_train='test')
+
         dataset_train.update_transform(train_transform)
         dataset_val.update_transform(val_transform)
         dataset_test.update_transform(val_transform)
@@ -965,14 +983,14 @@ def main(args):
                 drop_path_rate=args.drop_path,
                 global_pool=args.global_pool,
             )
-        elif args.patient_dataset_type == 'Center2D':
+        elif args.patient_dataset_type == 'Center2D' or args.patient_dataset_type == '2D':
             model = models_vit.__dict__[args.model](
                 img_size=args.input_size,
                 num_classes=args.nb_classes,
                 drop_path_rate=args.drop_path,
                 global_pool=args.global_pool,
             )
-        elif args.patient_dataset_type == 'Center2D_flash_attn':
+        elif args.patient_dataset_type == 'Center2D_flash_attn' or args.patient_dataset_type == '2D_flash_attn':
             model = models_vit_flash_attn.__dict__[args.model](
                 img_size=args.input_size,
                 num_classes=args.nb_classes,
@@ -1054,7 +1072,18 @@ def main(args):
             checkpoint = torch.load(args.finetune, map_location='cpu')
 
             print("Load pre-trained checkpoint from: %s" % args.finetune)
-            checkpoint_model = checkpoint['model']
+            print("checkpoint keys: ", list(checkpoint.keys()))
+            if 'model' in list(checkpoint.keys()):
+                checkpoint_model = checkpoint['model']
+            #TMP FOR mm_octcube_ir.pt
+            elif 'state_dict' in list(checkpoint.keys()):
+                checkpoint_model = checkpoint['state_dict']
+                checkpoint_model = {k.replace('module.', '', 1): v for k, v in checkpoint_model.items()}
+                checkpoint_model = {k.replace('text.', '', 1): v for k, v in checkpoint_model.items() if k.startswith('text.')}
+                for drop_k in ['head.weight', 'head.bias', 'fc_norm.weight', 'fc_norm.bias']:
+                    checkpoint_model.pop(drop_k, None)
+            else:
+                checkpoint_model = checkpoint
             state_dict = model.state_dict()
             for k in ['head.weight', 'head.bias']:
                 if k in checkpoint_model and checkpoint_model[k].shape != state_dict[k].shape:
@@ -1086,7 +1115,7 @@ def main(args):
                     assert set(msg.missing_keys) == {'fc_aggregate_cls.weight', 'fc_aggregate_cls.bias',
                     'aggregate_cls_norm.weight', 'aggregate_cls_norm.bias',
                     'head.weight', 'head.bias'}
-                elif args.patient_dataset_type == 'Center2D' or args.patient_dataset_type == 'Center2D_flash_attn':
+                elif args.patient_dataset_type == 'Center2D' or args.patient_dataset_type == 'Center2D_flash_attn' or args.patient_dataset_type == '2D' or args.patient_dataset_type == '2D_flash_attn':
                     assert set(msg.missing_keys) == {'head.weight', 'head.bias', 'fc_norm.weight', 'fc_norm.bias'}
                 elif args.patient_dataset_type == '3D_st' or args.patient_dataset_type == '3D_st_joint' or args.patient_dataset_type == '3D_st_flash_attn' or args.patient_dataset_type == '3D_st_joint_flash_attn':
                     assert set(msg.missing_keys) == {'head.weight', 'head.bias'}

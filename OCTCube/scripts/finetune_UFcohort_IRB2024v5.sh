@@ -22,8 +22,8 @@ Eval_score=${4:-"AUC"}
 TASK_MODE=${5:-"binary_cls"}
 ADDCMD=${6:-""}
 
-# Example usage: sbatch scripts/finetune_UFcohort_IRB2024v4.sh AMD_all_split flash_attn_vit_large_patch16 2 AUPRC binary_cls --testval
-data_type="IRB2024_v4"
+# Example usage: sbatch scripts/finetune_UFcohort_IRB2024v5.sh AMD_all_split flash_attn_vit_large_patch16 2 AUPRC binary_cls --testval
+data_type="IRB2024_v5"
 dataset_type="3D_st_flash_attn_nodrop"
 ROOT=/blue/ruogu.fang
 prefix=tienyuchang

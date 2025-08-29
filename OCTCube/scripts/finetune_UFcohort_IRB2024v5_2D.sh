@@ -22,15 +22,15 @@ Eval_score=${4:-"AUC"}
 TASK_MODE=${5:-"binary_cls"}
 ADDCMD=${6:-""}
 
-# Example usage: sbatch scripts/finetune_UFcohort_IRB2024v4.sh AMD_all_split flash_attn_vit_large_patch16 2 AUPRC binary_cls --testval
-data_type="IRB2024_v4"
-dataset_type="3D_st_flash_attn_nodrop"
+# Example usage: sbatch scripts/finetune_UFcohort_IRB2024v5_2D.sh AMD_all_split flash_attn_vit_large_patch16 2 AUPRC binary_cls --testval
+data_type="IRB2024_v5"
+dataset_type="2D_flash_attn"
 ROOT=/blue/ruogu.fang
 prefix=tienyuchang
 IMG_DIR=/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/
 CSV_DIR=/orange/ruogu.fang/tienyuchang/OCTRFF_Data/data/UF-cohort/${data_type}/split/tune5-eval5/${STUDY}.csv
 LOG_DIR=$ROOT/log_pt/
-OUTPUT_DIR=./outputs_ft_st/UFcohort_${STUDY}_${data_type}_${TASK_MODE}${ADDCMD}/
+OUTPUT_DIR=./outputs_ft_st/UFcohort_${STUDY}_${data_type}_${dataset_type}_${TASK_MODE}${ADDCMD}/
 python main_finetune_downstream_UFcohort.py --nb_classes $Num_CLASS \
     --data_path $IMG_DIR \
     --csv_path $CSV_DIR \
@@ -55,16 +55,16 @@ python main_finetune_downstream_UFcohort.py --nb_classes $Num_CLASS \
     --world_size 1 \
     --model $MODEL \
     --patient_dataset UFcohort \
-    --patient_dataset_type $dataset_type \
-    --transform_type monai_3D \
+    --patient_dataset_type 2D_flash_attn \
+    --transform_type frame_2D \
     --color_mode gray \
     --epochs 100 \
     --blr 5e-3 \
     --layer_decay 0.65 \
     --weight_decay 0.05 \
     --drop_path 0.2 \
-    --num_workers 0 \
-    --finetune $ROOT/$prefix/OCTCubeM/ckpt/OCTCube.pth \
+    --num_workers 8 \
+    --finetune $ROOT/$prefix/OCTCubeM/ckpt/mm_octcube_ir.pt \
     --return_bal_acc \
     --not_print_logits \
     ${ADDCMD}

@@ -790,11 +790,10 @@ def evaluate(data_loader, model, device, task, epoch, mode, num_class, criterion
     acc = accuracy_score(true_label_decode_list, prediction_decode_list)
     _, sensitivity, specificity, precision, G, F1, mcc, balanced_acc = misc_measures(confusion_matrix)
 
-
+    print(true_label_onehot_list[:20])
+    print(prediction_list[:20])
     auc_roc = roc_auc_score(true_label_onehot_list, prediction_list, multi_class='ovr', average='macro')
-
     auc_pr = average_precision_score(true_label_onehot_list, prediction_list, average='macro')
-
     metric_logger.synchronize_between_processes()
 
     print('Sklearn Metrics - Acc: {:.4f} Balanced-Acc: {:.4f} AUC-roc: {:.4f} AUC-pr: {:.4f} F1-score: {:.4f} MCC: {:.4f}'.format(acc, balanced_acc, auc_roc, auc_pr, F1, mcc))
