@@ -1,0 +1,759 @@
+# Copyright (c) Zixuan Liu et al, OCTCubeM group
+# All rights reserved.
+
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
+# Revised by Zixuan Zucks Liu @University of Washington
+
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+# Partly revised by YZ @UCL&Moorfields
+# --------------------------------------------------------
+
+import os
+import time
+import math
+import json
+import argparse
+import datetime
+import numpy as np
+
+from pathlib import Path
+
+import timm
+from timm.models.layers import trunc_normal_
+from timm.data.mixup import Mixup
+from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
+
+import torch
+import torch.backends.cudnn as cudnn
+from sklearn.model_selection import KFold
+from torch.utils.tensorboard import SummaryWriter
+
+
+import util.misc as misc
+import util.lr_decay as lrd
+from util.datasets import build_dataset
+from util.datasets import build_transform, load_patient_list
+
+from util.misc import NativeScalerWithGradNormCount as NativeScaler
+
+from util.pos_embed import interpolate_pos_embed, interpolate_temporal_pos_embed
+from util.WeightedLabelSmoothingCrossEntropy import WeightedLabelSmoothingCrossEntropy
+
+from util.PatientDataset import TransformableSubset, PatientDataset3D, PatientDatasetCenter2D, PatientDataset2D
+from util.PatientDataset_inhouse import create_3d_transforms
+from util.datasets import build_transform
+
+from engine_finetune_dual import train_one_epoch_dual, evaluate_dual, init_csv_writer
+import wandb
+
+# RETFound-center
+import models_vit
+import models_vit_flash_attn
+
+# RETFound-all
+import models_vit_3dhead
+import models_vit_3dhead_flash_attn
+
+# OCTCube
+import models_vit_st
+import models_vit_st_joint
+import models_vit_st_flash_attn
+import models_vit_st_joint_flash_attn
+import models_vit_st_flash_attn_nodrop
+import model_slivit_baseline
+
+import util.transforms.video_transforms as video_transforms
+
+
+home_directory = os.getenv('HOME') + '/'
+
+dataset_path = 'OCTCubeM/assets/ext_oph_datasets/glaucoma_processed/'
+dataset_name = 'glaucoma'
+
+def setup(rank, world_size):
+    dist.init_process_group("nccl", rank=rank, world_size=world_size)
+
+def cleanup():
+    dist.destroy_process_group()
+
+def get_model(patient_dataset_type,args):
+    if patient_dataset_type == '3D':
+        model = models_vit_3dhead.__dict__[args.model](
+            img_size=args.input_size,
+            num_classes=args.nb_classes,
+            drop_path_rate=args.drop_path,
+            global_pool=args.global_pool,
+        )
+    elif patient_dataset_type == 'Center2D' or patient_dataset_type == '2D':
+        model = models_vit.__dict__[args.model](
+            img_size=args.input_size,
+            num_classes=args.nb_classes,
+            drop_path_rate=args.drop_path,
+            global_pool=args.global_pool,
+        )
+    elif patient_dataset_type == 'Center2D_flash_attn' or patient_dataset_type == '2D_flash_attn':
+        model = models_vit_flash_attn.__dict__[args.model](
+            img_size=args.input_size,
+            num_classes=args.nb_classes,
+            drop_path_rate=args.drop_path,
+            global_pool=args.global_pool,
+        )
+    elif patient_dataset_type == '3D_flash_attn':
+        print('Use 3D flash attn model')
+        model = models_vit_3dhead_flash_attn.__dict__[args.model](
+            img_size=args.input_size,
+            num_classes=args.nb_classes,
+            drop_path_rate=args.drop_path,
+            global_pool=args.global_pool,
+        )
+    elif patient_dataset_type == '3D_st':
+        print('Use 3D spatio-temporal model')
+        model = models_vit_st.__dict__[args.model](
+            img_size=args.input_size,
+            num_classes=args.nb_classes,
+            drop_path_rate=args.drop_path,
+            global_pool=args.global_pool,
+            t_patch_size=args.t_patch_size,
+            num_frames=args.num_frames,
+            sep_pos_embed=args.sep_pos_embed,
+            cls_embed=args.cls_embed,
+        )
+    elif patient_dataset_type == '3D_st_joint':
+        model = models_vit_st_joint_flash_attn.__dict__[args.model](
+            img_size=args.input_size,
+            num_classes=args.nb_classes,
+            drop_path_rate=args.drop_path,
+            global_pool=args.global_pool,
+            t_patch_size=args.t_patch_size,
+            num_frames=args.num_frames,
+            sep_pos_embed=args.sep_pos_embed,
+            cls_embed=args.cls_embed,
+            transform_type=args.transform_type,
+            color_mode=args.color_mode,
+            smaller_temporal_crop=args.smaller_temporal_crop,
+            use_high_res_patch_embed=args.use_high_res_patch_embed,
+        )
+    elif patient_dataset_type == '3D_st_flash_attn':
+        print('Use 3D spatio-temporal model w/ flash attention')
+        model = models_vit_st_flash_attn.__dict__[args.model](
+            num_frames=args.num_frames,
+            t_patch_size=args.t_patch_size,
+            img_size=args.input_size,
+            num_classes=args.nb_classes,
+            drop_path_rate=args.drop_path,
+            global_pool=args.global_pool,
+            sep_pos_embed=args.sep_pos_embed,
+            cls_embed=args.cls_embed,
+            use_flash_attention=True,
+        )
+    elif patient_dataset_type == '3D_st_flash_attn_nodrop':
+        print('Use 3D spatio-temporal model w/ flash attention and no dropout')
+        model = models_vit_st_flash_attn_nodrop.__dict__[args.model](
+                num_frames=args.num_frames,
+                t_patch_size=args.t_patch_size,
+                image_size=args.input_size,
+                num_classes=args.nb_classes,
+                drop_path_rate=args.drop_path,
+                global_pool=args.global_pool,
+                sep_pos_embed=args.sep_pos_embed,
+                cls_embed=args.cls_embed,
+                use_flash_attention=True
+            )
+    elif patient_dataset_type == 'convnext_slivit':
+        model = model_slivit_baseline.get_slivit_model(args)
+    elif patient_dataset_type == 'Dual':
+        sub_model_oct = models_vit_st_flash_attn_nodrop.__dict__[args.model](
+                num_frames=args.num_frames,
+                t_patch_size=args.t_patch_size,
+                image_size=args.input_size,
+                num_classes=args.nb_classes,
+                drop_path_rate=args.drop_path,
+                global_pool=args.global_pool,
+                sep_pos_embed=args.sep_pos_embed,
+                cls_embed=args.cls_embed,
+                use_flash_attention=True
+            )
+        sub_model_cfp = models_vit_flash_attn.__dict__[args.model](
+            img_size=args.input_size,
+            num_classes=args.nb_classes,
+            drop_path_rate=args.drop_path,
+            global_pool=args.global_pool,
+        )
+        model = models_vit.__dict__['DualViT'](
+            vit_model_1=sub_model_oct, 
+            vit_model_2=sub_model_cfp, 
+            num_classes=args.nb_classes
+        )
+    else:
+        model = models_vit.__dict__[args.model](
+            img_size=args.input_size,
+            num_classes=args.nb_classes,
+            drop_path_rate=args.drop_path,
+            global_pool=args.global_pool,
+        )
+    return model
+
+def load_model_checkpoint(model, finetune, patient_dataset_type, args):
+    # Load OCT model checkpoint
+    checkpoint = torch.load(finetune, map_location='cpu')
+    print("Load pre-trained checkpoint from: %s" % finetune)
+    if 'model' in list(checkpoint.keys()):
+        checkpoint_model = checkpoint['model']
+    #TMP FOR mm_octcube_ir.pt
+    elif 'state_dict' in list(checkpoint.keys()):
+        checkpoint_model = checkpoint['state_dict']
+        checkpoint_model = {k.replace('module.', '', 1): v for k, v in checkpoint_model.items()}
+        checkpoint_model = {k.replace('text.', '', 1): v for k, v in checkpoint_model.items() if k.startswith('text.')}
+        for drop_k in ['head.weight', 'head.bias', 'fc_norm.weight', 'fc_norm.bias']:
+            checkpoint_model.pop(drop_k, None)
+    else:
+        checkpoint_model = checkpoint
+    state_dict = model.state_dict()
+    for k in ['head.weight', 'head.bias']:
+        if k in checkpoint_model and checkpoint_model[k].shape != state_dict[k].shape:
+            print(f"Removing key {k} from pretrained checkpoint")
+            del checkpoint_model[k]
+    # interpolate position embedding
+    if args.sep_pos_embed and (patient_dataset_type == '3D_st' or patient_dataset_type == '3D_st_flash_attn' or patient_dataset_type == '3D_st_flash_attn_nodrop' or patient_dataset_type.startswith('3D_st')):
+        interpolate_pos_embed(model, checkpoint_model)
+        interpolate_temporal_pos_embed(model, checkpoint_model, smaller_interpolate_type=args.smaller_temporal_crop)
+    else:
+        interpolate_pos_embed(model, checkpoint_model)
+
+    # load pre-trained model
+    if args.load_non_flash_attn_to_flash_attn:
+        msg = model.load_state_dict_to_backbone(checkpoint["model"])
+    else:
+        msg = model.load_state_dict(checkpoint_model, strict=False)
+    print(msg)
+    print(msg.missing_keys)
+
+    if args.global_pool:
+        if patient_dataset_type == '3D' or patient_dataset_type == '3D_flash_attn':
+            assert set(msg.missing_keys) == {'fc_aggregate_cls.weight', 'fc_aggregate_cls.bias',
+            'aggregate_cls_norm.weight', 'aggregate_cls_norm.bias',
+            'head.weight', 'head.bias', 'fc_norm.weight', 'fc_norm.bias'}
+        elif patient_dataset_type == '3D_st_flash_attn_nodrop':
+            print('Goin right way')
+            assert set(msg.missing_keys) == {'fc_aggregate_cls.weight', 'fc_aggregate_cls.bias',
+            'aggregate_cls_norm.weight', 'aggregate_cls_norm.bias',
+            'head.weight', 'head.bias'}
+        elif patient_dataset_type == 'Center2D' or patient_dataset_type == 'Center2D_flash_attn' or patient_dataset_type == '2D' or patient_dataset_type == '2D_flash_attn':
+            assert set(msg.missing_keys) == {'head.weight', 'head.bias', 'fc_norm.weight', 'fc_norm.bias'}
+        elif patient_dataset_type == '3D_st' or patient_dataset_type == '3D_st_joint' or patient_dataset_type == '3D_st_flash_attn' or patient_dataset_type == '3D_st_joint_flash_attn':
+            assert set(msg.missing_keys) == {'head.weight', 'head.bias'}
+    else:
+        assert set(msg.missing_keys) == {'head.weight', 'head.bias'}
+
+    # manually initialize fc layer
+    trunc_normal_(model.head.weight, std=2e-5)
+    return model
+
+def get_args_parser():
+    parser = argparse.ArgumentParser('MAE fine-tuning for image classification', add_help=False)
+    # Slivit parameters
+    parser.add_argument('--slivit_fe_path', default=home_directory + 'OCTCubeM/assets/SLIViT/checkpoints/kermany/feature_extractor.pth'
+    , type=str, help='feature extractor for SLIViT')
+    parser.add_argument('--slivit_num_of_patches', default=60, type=int, help='number of patches for SLIViT')
+    # new necessary functional parameters
+    parser.add_argument('--variable_joint', default=False, action='store_true', help='use variable joint attention')
+    parser.set_defaults(variable_joint=False)
+
+    # New parameters
+    parser.add_argument('--load_non_flash_attn_to_flash_attn', default=False, action='store_true', help='use focal loss')
+    parser.add_argument('--not_use_2d_aug', default=False, action='store_true', help='not use 2D augmentation')
+    parser.add_argument('--not_print_logits', default=False, action='store_true', help='not print logits')
+    parser.add_argument('--not_save_figs', default=False, action='store_true', help='not save figures')
+    parser.add_argument('--same_3_frames', default=False, action='store_true', help='use the same 3 frames to mock 1 frame for 3D spatio-temporal model')
+    parser.add_argument('--return_bal_acc', default=False, action='store_true', help='return balanced accuracy')
+
+    # mae_st parameters
+    parser.add_argument("--t_patch_size", default=3, type=int)
+    parser.add_argument("--num_frames", default=64, type=int)
+    parser.add_argument('--max_frames', default=64, type=int, help='maximum number of frames for each patient')
+    parser.add_argument("--sep_pos_embed", action="store_true")
+    parser.set_defaults(sep_pos_embed=True)
+    parser.add_argument("--cls_embed", action="store_true")
+    parser.set_defaults(cls_embed=True)
+    parser.add_argument("--transform_type", default="volume_3D", type=str, choices=["frame_2D", "monai_3D", "volume_3D"]) # only glaucoma has volume_3D transform
+    parser.add_argument("--color_mode", default="rgb", type=str, choices=["rgb", "gray"])
+    parser.add_argument("--smaller_temporal_crop", default='interp', type=str, choices=['interp', 'crop'], help='interpolation type for temporal position embedding')
+
+    # Patient dataset parameters
+    # Dataset parameters
+    parser.add_argument('--data_path', default=home_directory + dataset_path, type=str, help='dataset path')
+    parser.add_argument('--csv_path', default=home_directory + dataset_path, type=str, help='csv path')
+    parser.add_argument('--patient_dataset', default='', type=str, help='Use patient dataset')
+    parser.add_argument('--patient_dataset_type', default='Center2D', type=str, choices=['3D', 'Center2D', 'Center2D_flash_attn', '2D', '2D_flash_attn',  '3D_flash_attn', '3D_st', '3D_st_joint', '3D_st_flash_attn', '3D_st_joint_flash_attn', '3D_st_flash_attn_nodrop', 'convnext_slivit'], help='patient dataset type')
+    parser.add_argument('--dataset_mode', default='volume', type=str, choices=['frame', 'volume'], help='dataset mode for the patient dataset')
+    parser.add_argument('--iterate_mode', default='visit', type=str, choices=['visit', 'patient'], help='iterate mode for the patient dataset, glaucome uses visit')
+    parser.add_argument('--name_split_char', default='-', type=str, help='split character for the image filename')
+    parser.add_argument('--patient_idx_loc', default=1, type=int, help='patient index location in the image filename, e.g., 2 for amd_oct_2_1.png')
+    parser.add_argument('--visit_idx_loc', default=None, type=int, help='[optional] visit index location in the image filename')
+    parser.add_argument('--cls_unique', default=False, action='store_true', help='use unique class labels for the dataset')
+
+    # Task parameters
+    parser.add_argument('--task_mode', default='binary_cls', type=str, choices=['binary_cls','multi_cls'], help='Task mode for the dataset (no multi_label here)')
+    parser.add_argument('--val_metric', default='AUPRC', type=str, help='Validation metric for early stopping, newly added BalAcc (only used in AI-READI)')
+
+    parser.add_argument('--save_model', default=False, action='store_true', help='save model')
+    parser.add_argument('--enable_early_stop', default=False, action='store_true', help='enable early stop, currently not used in this script')
+    parser.add_argument('--early_stop_patience', default=10, type=int, help='early stop patience, currently not used in this script')
+
+    # K_fold cross validation
+    parser.add_argument('--k_fold', default=False, action='store_true', help='Use K-fold cross validation')
+    parser.add_argument('--k_folds', default=5, type=int, help='number of folds for K-fold cross validation')
+
+    parser.add_argument('--batch_size', default=64, type=int,
+                        help='Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus')
+    parser.add_argument('--val_batch_size', default=32, type=int,
+                        help='Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus')
+    parser.add_argument('--epochs', default=50, type=int)
+    parser.add_argument('--accum_iter', default=1, type=int,
+                        help='Accumulate gradient iterations (for increasing the effective batch size under memory constraints)')
+
+    # Model parameters
+    parser.add_argument('--model', default='vit_large_patch16', type=str, metavar='MODEL',
+                        help='Name of model to train')
+
+    parser.add_argument('--input_size', default=224, type=int,
+                        help='images input size')
+
+    parser.add_argument('--drop_path', type=float, default=0.1, metavar='PCT',
+                        help='Drop path rate (default: 0.1)')
+
+    # Optimizer parameters
+    parser.add_argument('--clip_grad', type=float, default=None, metavar='NORM',
+                        help='Clip gradient norm (default: None, no clipping)')
+    parser.add_argument('--weight_decay', type=float, default=0.05,
+                        help='weight decay (default: 0.05)')
+
+    parser.add_argument('--lr', type=float, default=None, metavar='LR',
+                        help='learning rate (absolute lr)')
+    parser.add_argument('--blr', type=float, default=1e-3, metavar='LR',
+                        help='base learning rate: absolute_lr = base_lr * total_batch_size / 256')
+    parser.add_argument('--layer_decay', type=float, default=0.75,
+                        help='layer-wise lr decay from ELECTRA/BEiT')
+
+    parser.add_argument('--min_lr', type=float, default=1e-6, metavar='LR',
+                        help='lower lr bound for cyclic schedulers that hit 0')
+
+    parser.add_argument('--warmup_epochs', type=int, default=10, metavar='N',
+                        help='epochs to warmup LR')
+
+    # Augmentation parameters
+    parser.add_argument('--color_jitter', type=float, default=None, metavar='PCT',
+                        help='Color jitter factor (enabled only when not using Auto/RandAug)')
+    parser.add_argument('--aa', type=str, default='rand-m9-mstd0.5-inc1', metavar='NAME',
+                        help='Use AutoAugment policy. "v0" or "original". " + "(default: rand-m9-mstd0.5-inc1)'),
+    parser.add_argument('--smoothing', type=float, default=0.1,
+                        help='Label smoothing (default: 0.1)')
+
+    # * Random Erase params
+    parser.add_argument('--reprob', type=float, default=0.25, metavar='PCT',
+                        help='Random erase prob (default: 0.25)')
+    parser.add_argument('--remode', type=str, default='pixel',
+                        help='Random erase mode (default: "pixel")')
+    parser.add_argument('--recount', type=int, default=1,
+                        help='Random erase count (default: 1)')
+    parser.add_argument('--resplit', action='store_true', default=False,
+                        help='Do not random erase first (clean) augmentation split')
+
+    # * Mixup params
+    parser.add_argument('--mixup', type=float, default=0,
+                        help='mixup alpha, mixup enabled if > 0.')
+    parser.add_argument('--cutmix', type=float, default=0,
+                        help='cutmix alpha, cutmix enabled if > 0.')
+    parser.add_argument('--cutmix_minmax', type=float, nargs='+', default=None,
+                        help='cutmix min/max ratio, overrides alpha and enables cutmix if set (default: None)')
+    parser.add_argument('--mixup_prob', type=float, default=1.0,
+                        help='Probability of performing mixup or cutmix when either/both is enabled')
+    parser.add_argument('--mixup_switch_prob', type=float, default=0.5,
+                        help='Probability of switching to cutmix when both mixup and cutmix enabled')
+    parser.add_argument('--mixup_mode', type=str, default='batch',
+                        help='How to apply mixup/cutmix params. Per "batch", "pair", or "elem"')
+
+    # * Finetuning params
+    parser.add_argument('--finetune', default='',type=str,
+                        help='finetune from checkpoint')
+    parser.add_argument('--few_shot', default=False, action='store_true',
+                        help='finetune from checkpoint')
+    parser.add_argument('--task', default=f'./finetune_{dataset_name}/',type=str,
+                        help='finetune from checkpoint')
+    parser.add_argument('--global_pool', action='store_true')
+    parser.set_defaults(global_pool=True)
+    parser.add_argument('--cls_token', action='store_false', dest='global_pool',
+                        help='Use class token instead of global pool for classification')
+
+    parser.add_argument('--nb_classes', default=2, type=int,
+                        help='number of the classification types')
+
+    parser.add_argument('--output_dir', default='./outputs_ft/',
+                        help='path where to save, empty for no saving')
+    parser.add_argument('--log_dir', default='./output_dir',
+                        help='path where to tensorboard log')
+    parser.add_argument('--device', default='cuda',
+                        help='device to use for training / testing')
+    parser.add_argument('--seed', default=0, type=int)
+    parser.add_argument('--resume', default='',
+                        help='resume from checkpoint')
+
+    parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
+                        help='start epoch')
+    parser.add_argument('--eval', action='store_true',
+                        help='Perform evaluation only')
+    parser.add_argument('--dist_eval', action='store_true', default=False,
+                        help='Enabling distributed evaluation (recommended during training for faster monitor')
+    parser.add_argument('--num_workers', default=10, type=int)
+    parser.add_argument('--pin_mem', action='store_true',
+                        help='Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.')
+    parser.add_argument('--no_pin_mem', action='store_false', dest='pin_mem')
+    parser.set_defaults(pin_mem=True)
+    #06/22 add
+    parser.add_argument('--testval', action='store_true', default=False,
+                        help='Use test set for validation, otherwise use val set')
+
+    # distributed training parameters
+    parser.add_argument('--world_size', default=1, type=int,
+                        help='number of distributed processes')
+    parser.add_argument('--rank', default=-1, type=int)
+    parser.add_argument('--dist_on_itp', action='store_true')
+    parser.add_argument('--dist_url', default='env://',
+                        help='url used to set up distributed training')
+
+    return parser
+
+
+def main(args):
+    misc.init_distributed_mode(args)
+
+    print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
+    print("{}".format(args).replace(', ', ',\n'))
+    
+    wandb_task_name = args.task.replace('.','').replace('/', '_') + datetime.datetime.now().strftime("_%Y%m%d_%H%M%S")
+    wandb.init(
+        project="OCTCubeM",
+        name=wandb_task_name,
+        config=args,
+        dir=os.path.join(args.log_dir,wandb_task_name),
+    )
+
+    # Save args to a json file
+    if args.output_dir:
+        os.makedirs(args.output_dir, exist_ok=True)
+        with open(os.path.join(args.output_dir, 'args.json'), 'w') as f:
+            json.dump(vars(args), f, indent=2)
+
+    device = torch.device(args.device)
+
+    # fix the seed for reproducibility
+    seed = args.seed + misc.get_rank()
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+
+    if not args.return_bal_acc:
+        val_bal_acc = None
+        test_bal_acc = None
+
+    cudnn.benchmark = True
+    if args.patient_dataset=='UFcohort':
+        #transform
+        if args.transform_type == 'volume_3D':
+            oct_train_transform = video_transforms.Compose([
+                video_transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ])
+            oct_val_transform = oct_train_transform
+        elif args.transform_type == 'monai_3D':
+            oct_train_transform, oct_val_transform = create_3d_transforms(**vars(args))
+
+        fundus_train_transform = build_transform(is_train='train', args=args)
+        fundus_val_transform = build_transform(is_train='val', args=args)
+        if args.not_use_2d_aug:
+            fundus_train_transform = build_transform(is_train='val', args=args)
+            fundus_val_transform = build_transform(is_train='val', args=args)
+        #dataset
+        if not args.testval:
+            tr_istrain = 'train'
+            val_istrain = 'val'
+        else:
+            tr_istrain = ['train', 'val']
+            val_istrain = 'test'
+        assert args.patient_dataset_type == 'Dual'
+        #[B, C, T, H, W]
+        oct_dataset_train = PatientDataset3D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, max_frames=args.max_frames, mode=args.color_mode, transform_type=args.transform_type, volume_resize=args.input_size, same_3_frames=args.same_3_frames, csv_path=args.csv_path, is_train=tr_istrain)
+        oct_dataset_val = PatientDataset3D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, max_frames=args.max_frames, mode=args.color_mode, transform_type=args.transform_type, volume_resize=args.input_size, same_3_frames=args.same_3_frames, csv_path=args.csv_path, is_train=val_istrain)
+        oct_dataset_test = PatientDataset3D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, max_frames=args.max_frames, mode=args.color_mode, transform_type=args.transform_type, volume_resize=args.input_size, same_3_frames=args.same_3_frames, csv_path=args.csv_path, is_train='test')
+        
+        oct_dataset_train.update_transform(oct_train_transform)
+        oct_dataset_val.update_transform(oct_val_transform)
+        oct_dataset_test.update_transform(oct_val_transform)
+
+        fundus_dataset_train = PatientDataset2D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, csv_path=args.csv_path, is_train=tr_istrain)
+        fundus_dataset_val = PatientDataset2D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, csv_path=args.csv_path, is_train=val_istrain)
+        fundus_dataset_test = PatientDataset2D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None, dataset_mode=args.dataset_mode, name_split_char=args.name_split_char, cls_unique=args.cls_unique, iterate_mode=args.iterate_mode, csv_path=args.csv_path, is_train='test')
+
+        fundus_dataset_train.update_transform(fundus_train_transform)
+        fundus_dataset_val.update_transform(fundus_val_transform)
+        fundus_dataset_test.update_transform(fundus_val_transform)
+        assert args.k_fold is False
+    else:
+        print('Please use other scripts for non-UFcohort dataset')
+        exit()
+    
+    num_tasks = misc.get_world_size()
+    global_rank = misc.get_rank()
+    if True: #tmp code TODO:Create new dataset for two in one
+        val_mode = 'val'
+        oct_sampler_train = torch.utils.data.DistributedSampler(
+            oct_dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=False
+        )
+        fundus_sampler_train = torch.utils.data.DistributedSampler(
+            fundus_dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=False
+        )
+        print("Sampler_train OCT = %s" % str(oct_sampler_train))
+        print("Sampler_train Fundus = %s" % str(fundus_sampler_train))
+        
+        if args.dist_eval:
+            if len(oct_dataset_val) % num_tasks != 0:
+                print('Warning: Enabling distributed evaluation with an eval dataset not divisible by process number. '
+                      'This will slightly alter validation results as extra duplicate entries are added to achieve '
+                      'equal num of samples per-process.')
+            oct_sampler_val = torch.utils.data.DistributedSampler(
+                oct_dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)  # shuffle=True to reduce monitor bias
+            fundus_sampler_val = torch.utils.data.DistributedSampler(
+                fundus_dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)  # shuffle=True to reduce monitor bias
+        else:
+            oct_sampler_val = torch.utils.data.SequentialSampler(oct_dataset_val)
+            fundus_sampler_val = torch.utils.data.SequentialSampler(fundus_dataset_val)
+
+        if args.dist_eval:
+            if len(oct_dataset_test) % num_tasks != 0:
+                print('Warning: Enabling distributed evaluation with an eval dataset not divisible by process number. '
+                      'This will slightly alter validation results as extra duplicate entries are added to achieve '
+                      'equal num of samples per-process.')
+            oct_sampler_test = torch.utils.data.DistributedSampler(
+                oct_dataset_test, num_replicas=num_tasks, rank=global_rank, shuffle=True)  # shuffle=True to reduce monitor bias
+            fundus_sampler_test = torch.utils.data.DistributedSampler(
+                fundus_dataset_test, num_replicas=num_tasks, rank=global_rank, shuffle=True)  # shuffle=True to reduce monitor bias
+        else:
+            oct_sampler_test = torch.utils.data.SequentialSampler(oct_dataset_test)
+            fundus_sampler_test = torch.utils.data.SequentialSampler(fundus_dataset_test)
+
+
+        if global_rank == 0 and args.log_dir is not None and not args.eval:
+            os.makedirs(args.log_dir, exist_ok=True)
+            log_writer = SummaryWriter(log_dir=args.log_dir+args.task)
+        else:
+            log_writer = None
+
+        oct_data_loader_train = torch.utils.data.DataLoader(
+            oct_dataset_train, sampler=oct_sampler_train,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            pin_memory=args.pin_mem,
+            drop_last=True,
+        )
+        fundus_data_loader_train = torch.utils.data.DataLoader(
+            fundus_dataset_train, sampler=fundus_sampler_train,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            pin_memory=args.pin_mem,
+            drop_last=True,
+        )
+
+        oct_data_loader_val = torch.utils.data.DataLoader(
+            oct_dataset_val, sampler=oct_sampler_val,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            pin_memory=args.pin_mem,
+            drop_last=False
+        )
+        fundus_data_loader_val = torch.utils.data.DataLoader(
+            fundus_dataset_val, sampler=fundus_sampler_val,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            pin_memory=args.pin_mem,
+            drop_last=False
+        )
+
+        oct_data_loader_test = torch.utils.data.DataLoader(
+            oct_dataset_test, sampler=oct_sampler_test,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            pin_memory=args.pin_mem,
+            drop_last=False
+        )
+        fundus_data_loader_test = torch.utils.data.DataLoader(
+            fundus_dataset_test, sampler=fundus_sampler_test,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            pin_memory=args.pin_mem,
+            drop_last=False
+        )
+
+        mixup_fn = None
+        mixup_active = args.mixup > 0 or args.cutmix > 0. or args.cutmix_minmax is not None
+        if mixup_active:
+            print("Mixup is activated!")
+            mixup_fn = Mixup(
+                mixup_alpha=args.mixup, cutmix_alpha=args.cutmix, cutmix_minmax=args.cutmix_minmax,
+                prob=args.mixup_prob, switch_prob=args.mixup_switch_prob, mode=args.mixup_mode,
+                label_smoothing=args.smoothing, num_classes=args.nb_classes)
+
+        model = get_model(args.patient_dataset_type, args)
+        oct_model = model.vit_model_1
+        fundus_model = model.vit_model_2
+
+        if args.oct_finetune and not args.eval and args.patient_dataset_type != 'convnext_slivit':
+            oct_model = load_model_checkpoint(oct_model, args.oct_finetune, '3D_st_flash_attn_nodrop', args)
+        if args.fundus_finetune and not args.eval and args.patient_dataset_type != 'convnext_slivit':
+            fundus_model = load_model_checkpoint(fundus_model, args.fundus_finetune, "2D_flash_attn", args)
+
+        model.to(device)
+
+        model_without_ddp = model
+        n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+        print("Model = %s" % str(model_without_ddp))
+        print('number of params (M): %.2f' % (n_parameters / 1.e6))
+
+        eff_batch_size = args.batch_size * args.accum_iter * misc.get_world_size()
+
+        if args.lr is None:  # only base_lr is specified
+            args.lr = args.blr * eff_batch_size / 256
+
+        print("base lr: %.2e" % (args.lr * 256 / eff_batch_size))
+        print("actual lr: %.2e" % args.lr)
+
+        print("accumulate grad iterations: %d" % args.accum_iter)
+        print("effective batch size: %d" % eff_batch_size)
+
+        if args.distributed:
+            model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
+            model_without_ddp = model.module
+
+        # build optimizer with layer-wise lr decay (lrd)
+        if args.patient_dataset_type == 'convnext_slivit':
+            # don't use layer-wise lr decay for convnext_slivit
+            param_groups = model_without_ddp.parameters()
+        else:
+            # build optimizer with layer-wise lr decay (lrd)
+            param_groups = lrd.param_groups_lrd(model_without_ddp, args.weight_decay,
+                no_weight_decay_list=model_without_ddp.no_weight_decay(),
+                layer_decay=args.layer_decay
+            )
+        optimizer = torch.optim.AdamW(param_groups, lr=args.lr)
+        loss_scaler = NativeScaler()
+
+        if mixup_fn is not None:
+            # smoothing is handled with mixup label transform
+            criterion = SoftTargetCrossEntropy()
+        elif args.smoothing > 0.:
+            criterion = LabelSmoothingCrossEntropy(smoothing=args.smoothing)
+        else:
+            criterion = torch.nn.CrossEntropyLoss()
+
+        print("criterion = %s" % str(criterion))
+
+        misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
+
+        if args.eval:
+            test_stats, auc_roc, auc_pr = evaluate_dual(oct_data_loader_test, fundus_data_loader_test, model, device, args.task, epoch=0, mode=args.task_mode, num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
+            if args.return_bal_acc:
+                test_auc_pr, test_bal_acc = auc_pr
+            wandb_dict={f'test_{k}': v for k, v in test_stats.items()}
+            wandb.log(wandb_dict)
+            wandb.finish()
+            exit(0)
+
+        print(f"Start training for {args.epochs} epochs")
+        start_time = time.time()
+        max_accuracy = 0.0
+        max_score = 0.0
+        best_val_stats, test_stats = {}, {}
+        for epoch in range(args.start_epoch, args.epochs):
+            if args.distributed:
+                oct_data_loader_train.sampler.set_epoch(epoch)
+                fundus_data_loader_train.sampler.set_epoch(epoch)
+            train_stats = train_one_epoch_dual(
+                model, criterion, oct_data_loader_train, fundus_data_loader_train,
+                optimizer, device, epoch, loss_scaler,
+                args.clip_grad, mixup_fn,
+                log_writer=log_writer,
+                args=args
+            )
+            if train_stats is None:
+                # downscale the learning rate by 2
+                for param_group in optimizer.param_groups:
+                    param_group['lr'] /= 2
+                print(f"Downscale the learning rate to {param_group['lr']}")
+
+            val_stats, val_auc_roc, val_auc_pr = evaluate_dual(oct_data_loader_val, fundus_data_loader_val, model, device, args.task, epoch, mode=val_mode, num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
+            if args.return_bal_acc:
+                val_auc_pr, val_bal_acc = val_auc_pr
+            #eval score
+            if args.val_metric== 'AUC':
+                e_score = val_auc_roc
+            elif args.val_metric == 'AUPRC':
+                e_score = val_auc_pr
+            elif args.val_metric in val_stats:
+                e_score = val_stats[args.val_metric]
+            else:
+                raise ValueError(f"Unknown validation metric: {args.val_metric}")
+            #select best
+            if max_score <= e_score:
+                max_score = e_score
+                if args.output_dir:
+                    misc.save_model(
+                        args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
+                        loss_scaler=loss_scaler, epoch=epoch)
+                best_val_stats = val_stats
+                test_stats,auc_roc, auc_pr = evaluate_dual(oct_data_loader_test, fundus_data_loader_test, model, device, args.task, epoch, mode='test', num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
+
+            if log_writer is not None:
+                log_writer.add_scalar('perf/val_acc1', val_stats['acc1'], epoch)
+                log_writer.add_scalar('perf/val_auc', val_auc_roc, epoch)
+                log_writer.add_scalar('perf/val_loss', val_stats['loss'], epoch)
+
+            log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
+                            'epoch': epoch,
+                            'n_parameters': n_parameters}
+
+            if args.output_dir and misc.is_main_process():
+                if log_writer is not None:
+                    log_writer.flush()
+                with open(os.path.join(args.output_dir, "log.txt"), mode="a") as f:
+                    f.write(json.dumps(log_stats) + "\n")
+                wandb_dict = {"epoch": epoch}
+                wandb_dict.update({f'train_{k}': v for k, v in train_stats.items()})
+                wandb_dict.update({f'val_{k}': v for k, v in val_stats.items()})
+                wandb.log(wandb_dict, step=epoch)
+        #best valid
+        wandb_dict = {}
+        wandb_dict.update({f'best_val_{k}': v for k, v in best_val_stats.items()})
+        wandb.log(wandb_dict)
+        #Load best val model for testing BUG
+        #misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
+        wandb_dict = {}
+        wandb_dict.update({f'test_{k}': v for k, v in test_stats.items()})
+        wandb.log(wandb_dict)
+
+        total_time = time.time() - start_time
+        total_time_str = str(datetime.timedelta(seconds=int(total_time)))
+        print('Training time {}'.format(total_time_str))
+        
+        if log_writer is not None and misc.is_main_process():
+            log_writer.close()
+            wandb.finish()
+
+
+if __name__ == '__main__':
+    args = get_args_parser()
+    args = args.parse_args()
+
+    if args.output_dir:
+        Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+    main(args)
