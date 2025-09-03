@@ -3,9 +3,9 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem-per-cpu=8gb
-#SBATCH --partition=hpg-b200
+#SBATCH --partition=hpg-turin
 #SBATCH --gpus=1
-#SBATCH --time=24:00:00
+#SBATCH --time=48:00:00
 #SBATCH --output=%x.%j.out
 #SBATCH --account=ruogu.fang
 #SBATCH --qos=ruogu.fang
@@ -30,7 +30,7 @@ prefix=tienyuchang
 IMG_DIR=/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/
 CSV_DIR=/orange/ruogu.fang/tienyuchang/OCTRFF_Data/data/UF-cohort/${data_type}/split/tune5-eval5/${STUDY}.csv
 LOG_DIR=./log_pt/
-OUTPUT_DIR=/orange/ruogu.fang/tienyuchang/OCTCube_results/outputs_ft_st_tmp/UFcohort_${STUDY}_${data_type}_${TASK_MODE}${ADDCMD}/
+OUTPUT_DIR=/orange/ruogu.fang/tienyuchang/OCTCube_results/outputs_ft_st/UFcohort_${STUDY}_${data_type}_${TASK_MODE}${ADDCMD}/
 python main_finetune_downstream_UFcohort.py --nb_classes $Num_CLASS \
     --data_path $IMG_DIR \
     --csv_path $CSV_DIR \
