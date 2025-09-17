@@ -404,7 +404,7 @@ def misc_measures(confusion_matrix, start_cls_idx=0):
 
 
 def train_one_epoch_dual(model: torch.nn.Module, criterion: torch.nn.Module,
-                    oct_data_loader: Iterable, fundus_data_loader: Iterable, optimizer: torch.optim.Optimizer,
+                    data_loader: Iterable, optimizer: torch.optim.Optimizer,
                     device: torch.device, epoch: int, loss_scaler, max_norm: float = 0,
                     mixup_fn: Optional[Mixup] = None, log_writer=None,
                     args=None):
@@ -420,19 +420,19 @@ def train_one_epoch_dual(model: torch.nn.Module, criterion: torch.nn.Module,
 
     if log_writer is not None:
         print('log_dir: {}'.format(log_writer.log_dir))
-    total = len(oct_data_loader)
-    it_oct = iter(oct_data_loader)
-    it_cfp = iter(fundus_data_loader)
-    for data_iter_step, _ in enumerate(metric_logger.log_every(range(total), print_freq, header)):
-        oct_batch = next(it_oct)
-        cfp_batch = next(it_cfp)
-        oct_images, oct_targets = oct_batch[0].to(device, non_blocking=True), oct_batch[1].to(device, non_blocking=True)
-        cfp_images, cfp_targets = cfp_batch[0].to(device, non_blocking=True), cfp_batch[1].to(device, non_blocking=True)
+    for data_iter_step, (oct_images, cfp_images, targets) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
+
+        # we use a per iteration (instead of per epoch) lr scheduler
+        if data_iter_step % accum_iter == 0:
+            lr_sched.adjust_learning_rate(optimizer, data_iter_step / len(data_loader) + epoch, args) # type: ignore
+
+        oct_images = oct_images.to(device, non_blocking=True)
+        cfp_images = cfp_images.to(device, non_blocking=True)
+        targets = targets.to(device, non_blocking=True)
+
         # we use a per iteration (instead of per epoch) lr scheduler
         if data_iter_step % accum_iter == 0:
             lr_sched.adjust_learning_rate(optimizer, data_iter_step / len(oct_data_loader) + epoch, args) # type: ignore
-
-        targets = oct_targets
 
         # Check if the criterion is BCEWithLogitsLoss and convert targets to float if it is
         if isinstance(criterion, torch.nn.BCEWithLogitsLoss) or isinstance(criterion, FocalLoss2d):
@@ -507,7 +507,7 @@ def init_csv_writer(task, mode):
 
 
 @torch.no_grad()
-def evaluate_dual(oct_data_loader, fundus_data_loader, model, device, task, epoch, mode, num_class, criterion=torch.nn.CrossEntropyLoss(), task_mode='binary_cls', disease_list=None, return_bal_acc=False, args=None):
+def evaluate_dual(data_loader, model, device, task, epoch, mode, num_class, criterion=torch.nn.CrossEntropyLoss(), task_mode='binary_cls', disease_list=None, return_bal_acc=False, args=None):
 
     metric_logger = misc.MetricLogger(delimiter="  ")
     header = 'Test:'
@@ -544,17 +544,10 @@ def evaluate_dual(oct_data_loader, fundus_data_loader, model, device, task, epoc
         visit_hash_list = []
         embeddings_list = []
         targets_list = []
-    total = len(oct_data_loader)
-    it_oct = iter(oct_data_loader)
-    it_cfp = iter(fundus_data_loader)
-    for i, _ in enumerate(metric_logger.log_every(range(total), 10, header)):
-        oct_batch = next(it_oct)
-        cfp_batch = next(it_cfp)
-        oct_images = oct_batch[0]
-        oct_targets = oct_batch[1]
-        cfp_images = cfp_batch[0]
-        cfp_targets = cfp_batch[1]
-        target = oct_targets
+    for i, batch in enumerate(metric_logger.log_every(data_loader, 1, header)):
+        oct_images = batch[0]
+        cfp_images = batch[1]
+        target = batch[2]
 
         if args.frame_inference_all:
             all_info = target
