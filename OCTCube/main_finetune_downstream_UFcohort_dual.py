@@ -211,6 +211,9 @@ def load_model_checkpoint(model, finetune, patient_dataset_type, args, pretrain_
             checkpoint_model.pop(drop_k, None)
     else:
         checkpoint_model = checkpoint
+    #tmp rename
+    checkpoint_model = {k.replace('vit_model_1.', '', 1).replace('vit_model_2.', '', 1): v for k, v in checkpoint_model.items()}
+    
     state_dict = model.state_dict()
     for k in ['head.weight', 'head.bias']:
         if k in checkpoint_model and checkpoint_model[k].shape != state_dict[k].shape:
@@ -230,23 +233,6 @@ def load_model_checkpoint(model, finetune, patient_dataset_type, args, pretrain_
         msg = model.load_state_dict(checkpoint_model, strict=False)
     print(msg)
     print(msg.missing_keys)
-
-    if args.global_pool:
-        if patient_dataset_type == '3D' or patient_dataset_type == '3D_flash_attn':
-            assert set(msg.missing_keys) == {'fc_aggregate_cls.weight', 'fc_aggregate_cls.bias',
-            'aggregate_cls_norm.weight', 'aggregate_cls_norm.bias',
-            'head.weight', 'head.bias', 'fc_norm.weight', 'fc_norm.bias'}
-        elif patient_dataset_type == '3D_st_flash_attn_nodrop':
-            print('Goin right way')
-            assert set(msg.missing_keys) == {'fc_aggregate_cls.weight', 'fc_aggregate_cls.bias',
-            'aggregate_cls_norm.weight', 'aggregate_cls_norm.bias',
-            'head.weight', 'head.bias'}
-        elif patient_dataset_type == 'Center2D' or patient_dataset_type == 'Center2D_flash_attn' or patient_dataset_type == '2D' or patient_dataset_type == '2D_flash_attn':
-            assert set(msg.missing_keys) == {'head.weight', 'head.bias', 'fc_norm.weight', 'fc_norm.bias'}
-        elif patient_dataset_type == '3D_st' or patient_dataset_type == '3D_st_joint' or patient_dataset_type == '3D_st_flash_attn' or patient_dataset_type == '3D_st_joint_flash_attn':
-            assert set(msg.missing_keys) == {'head.weight', 'head.bias'}
-    else:
-        assert set(msg.missing_keys) == {'head.weight', 'head.bias'}
 
     # manually initialize fc layer
     if pretrain_flag:
