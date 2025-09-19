@@ -196,7 +196,7 @@ def get_model(patient_dataset_type,args):
         )
     return model
 
-def load_model_checkpoint(model, finetune, patient_dataset_type, args):
+def load_model_checkpoint(model, finetune, patient_dataset_type, args, pretrain_flag = True):
     # Load OCT model checkpoint
     checkpoint = torch.load(finetune, map_location='cpu')
     print("Load pre-trained checkpoint from: %s" % finetune)
@@ -249,7 +249,8 @@ def load_model_checkpoint(model, finetune, patient_dataset_type, args):
         assert set(msg.missing_keys) == {'head.weight', 'head.bias'}
 
     # manually initialize fc layer
-    trunc_normal_(model.head.weight, std=2e-5)
+    if pretrain_flag:
+        trunc_normal_(model.head.weight, std=2e-5)
     return model
 
 def get_args_parser():
@@ -582,10 +583,10 @@ def main(args):
         oct_model = model.vit_model_1
         fundus_model = model.vit_model_2
 
-        if args.oct_finetune and not args.eval and args.patient_dataset_type != 'convnext_slivit':
-            oct_model = load_model_checkpoint(oct_model, args.oct_finetune, '3D_st_flash_attn_nodrop', args)
-        if args.fundus_finetune and not args.eval and args.patient_dataset_type != 'convnext_slivit':
-            fundus_model = load_model_checkpoint(fundus_model, args.fundus_finetune, "2D_flash_attn", args)
+        if args.oct_finetune and args.patient_dataset_type != 'convnext_slivit':
+            oct_model = load_model_checkpoint(oct_model, args.oct_finetune, '3D_st_flash_attn_nodrop', args, pretrain_flag=False)
+        if args.fundus_finetune and args.patient_dataset_type != 'convnext_slivit':
+            fundus_model = load_model_checkpoint(fundus_model, args.fundus_finetune, "2D_flash_attn", args, pretrain_flag=False)
 
         model.to(device)
 
