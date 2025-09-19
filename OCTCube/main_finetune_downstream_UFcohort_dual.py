@@ -377,7 +377,9 @@ def get_args_parser():
                         help='How to apply mixup/cutmix params. Per "batch", "pair", or "elem"')
 
     # * Finetuning params
-    parser.add_argument('--finetune', default='',type=str,
+    parser.add_argument('--oct_finetune', default='',type=str,
+                        help='finetune from checkpoint')
+    parser.add_argument('--fundus_finetune', default='',type=str,
                         help='finetune from checkpoint')
     parser.add_argument('--few_shot', default=False, action='store_true',
                         help='finetune from checkpoint')
