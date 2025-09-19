@@ -432,7 +432,7 @@ def train_one_epoch_dual(model: torch.nn.Module, criterion: torch.nn.Module,
 
         # we use a per iteration (instead of per epoch) lr scheduler
         if data_iter_step % accum_iter == 0:
-            lr_sched.adjust_learning_rate(optimizer, data_iter_step / len(oct_data_loader) + epoch, args) # type: ignore
+            lr_sched.adjust_learning_rate(optimizer, data_iter_step / len(data_loader) + epoch, args) # type: ignore
 
         # Check if the criterion is BCEWithLogitsLoss and convert targets to float if it is
         if isinstance(criterion, torch.nn.BCEWithLogitsLoss) or isinstance(criterion, FocalLoss2d):
@@ -484,7 +484,7 @@ def train_one_epoch_dual(model: torch.nn.Module, criterion: torch.nn.Module,
             """ We use epoch_1000x as the x-axis in tensorboard.
             This calibrates different curves when batch size changes.
             """
-            epoch_1000x = int((data_iter_step / len(oct_data_loader) + epoch) * 1000) # type: ignore
+            epoch_1000x = int((data_iter_step / len(data_loader) + epoch) * 1000) # type: ignore
             log_writer.add_scalar('loss', loss_value_reduce, epoch_1000x)
             log_writer.add_scalar('lr', max_lr, epoch_1000x)
 
