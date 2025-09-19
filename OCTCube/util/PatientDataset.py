@@ -1905,6 +1905,20 @@ class PatientDataset2D(PatientDatasetCenter2D):
             else:
                 return frame, data_dict['class_idx'], patient_id, (0, 1)
 
+class Dual_Dataset(Dataset):
+    def __init__(self,data_oct,data_cfp):
+        self.data_oct = data_oct
+        self.data_cfp = data_cfp
+        #TODO:Merge to csv to match to modality
+        assert len(data_oct) == len(data_cfp), "The number of OCT and CFP data must be the same"
+    def __len__(self):
+        return len(self.data_oct)
+    def __getitem__(self, idx):
+        sample_oct, label_oct = self.data_oct[idx]
+        sample_cfp, label_cfp = self.data_cfp[idx]
+        assert label_oct == label_cfp, "The label of OCT and CFP must be the same"
+        return sample_oct, sample_cfp, label_oct
+
 def get_aireadi_patient_dict(participants_df, oct_manifest_df, label_mapping, verbose=False):
     patient_dict = {}
     for idx, row in participants_df.iterrows():

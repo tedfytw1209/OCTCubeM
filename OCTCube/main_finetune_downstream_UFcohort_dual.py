@@ -42,7 +42,7 @@ from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from util.pos_embed import interpolate_pos_embed, interpolate_temporal_pos_embed
 from util.WeightedLabelSmoothingCrossEntropy import WeightedLabelSmoothingCrossEntropy
 
-from util.PatientDataset import TransformableSubset, PatientDataset3D, PatientDatasetCenter2D, PatientDataset2D
+from util.PatientDataset import PatientDataset3D, PatientDataset2D, Dual_Dataset
 from util.PatientDataset_inhouse import create_3d_transforms
 from util.datasets import build_transform
 
@@ -498,6 +498,11 @@ def main(args):
         fundus_dataset_train.update_transform(fundus_train_transform)
         fundus_dataset_val.update_transform(fundus_val_transform)
         fundus_dataset_test.update_transform(fundus_val_transform)
+        #Merge 3D and 2D dataset
+        dataset_train = Dual_Dataset(oct_dataset_train, fundus_dataset_train)
+        dataset_val = Dual_Dataset(oct_dataset_val, fundus_dataset_val)
+        dataset_test = Dual_Dataset(oct_dataset_test, fundus_dataset_test)
+        
         assert args.k_fold is False
     else:
         print('Please use other scripts for non-UFcohort dataset')
@@ -507,41 +512,30 @@ def main(args):
     global_rank = misc.get_rank()
     if True: #tmp code TODO:Create new dataset for two in one
         val_mode = 'val'
-        oct_sampler_train = torch.utils.data.DistributedSampler(
-            oct_dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=False
+        sampler_train = torch.utils.data.DistributedSampler(
+            dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=False
         )
-        fundus_sampler_train = torch.utils.data.DistributedSampler(
-            fundus_dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=False
-        )
-        print("Sampler_train OCT = %s" % str(oct_sampler_train))
-        print("Sampler_train Fundus = %s" % str(fundus_sampler_train))
+        print("Sampler_train OCT = %s" % str(sampler_train))
         
         if args.dist_eval:
-            if len(oct_dataset_val) % num_tasks != 0:
+            if len(dataset_val) % num_tasks != 0:
                 print('Warning: Enabling distributed evaluation with an eval dataset not divisible by process number. '
                       'This will slightly alter validation results as extra duplicate entries are added to achieve '
                       'equal num of samples per-process.')
-            oct_sampler_val = torch.utils.data.DistributedSampler(
-                oct_dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)  # shuffle=True to reduce monitor bias
-            fundus_sampler_val = torch.utils.data.DistributedSampler(
-                fundus_dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)  # shuffle=True to reduce monitor bias
+            sampler_val = torch.utils.data.DistributedSampler(
+                dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)  # shuffle=True to reduce monitor bias
         else:
-            oct_sampler_val = torch.utils.data.SequentialSampler(oct_dataset_val)
-            fundus_sampler_val = torch.utils.data.SequentialSampler(fundus_dataset_val)
+            sampler_val = torch.utils.data.SequentialSampler(dataset_val)
 
         if args.dist_eval:
-            if len(oct_dataset_test) % num_tasks != 0:
+            if len(dataset_test) % num_tasks != 0:
                 print('Warning: Enabling distributed evaluation with an eval dataset not divisible by process number. '
                       'This will slightly alter validation results as extra duplicate entries are added to achieve '
                       'equal num of samples per-process.')
-            oct_sampler_test = torch.utils.data.DistributedSampler(
-                oct_dataset_test, num_replicas=num_tasks, rank=global_rank, shuffle=True)  # shuffle=True to reduce monitor bias
-            fundus_sampler_test = torch.utils.data.DistributedSampler(
-                fundus_dataset_test, num_replicas=num_tasks, rank=global_rank, shuffle=True)  # shuffle=True to reduce monitor bias
+            sampler_test = torch.utils.data.DistributedSampler(
+                dataset_test, num_replicas=num_tasks, rank=global_rank, shuffle=True)  # shuffle=True to reduce monitor bias
         else:
-            oct_sampler_test = torch.utils.data.SequentialSampler(oct_dataset_test)
-            fundus_sampler_test = torch.utils.data.SequentialSampler(fundus_dataset_test)
-
+            sampler_test = torch.utils.data.SequentialSampler(dataset_test)
 
         if global_rank == 0 and args.log_dir is not None and not args.eval:
             os.makedirs(args.log_dir, exist_ok=True)
@@ -549,45 +543,24 @@ def main(args):
         else:
             log_writer = None
 
-        oct_data_loader_train = torch.utils.data.DataLoader(
-            oct_dataset_train, sampler=oct_sampler_train,
-            batch_size=args.batch_size,
-            num_workers=args.num_workers,
-            pin_memory=args.pin_mem,
-            drop_last=True,
-        )
-        fundus_data_loader_train = torch.utils.data.DataLoader(
-            fundus_dataset_train, sampler=fundus_sampler_train,
+        data_loader_train = torch.utils.data.DataLoader(
+            dataset_train, sampler=sampler_train,
             batch_size=args.batch_size,
             num_workers=args.num_workers,
             pin_memory=args.pin_mem,
             drop_last=True,
         )
 
-        oct_data_loader_val = torch.utils.data.DataLoader(
-            oct_dataset_val, sampler=oct_sampler_val,
-            batch_size=args.batch_size,
-            num_workers=args.num_workers,
-            pin_memory=args.pin_mem,
-            drop_last=False
-        )
-        fundus_data_loader_val = torch.utils.data.DataLoader(
-            fundus_dataset_val, sampler=fundus_sampler_val,
+        data_loader_val = torch.utils.data.DataLoader(
+            dataset_val, sampler=sampler_val,
             batch_size=args.batch_size,
             num_workers=args.num_workers,
             pin_memory=args.pin_mem,
             drop_last=False
         )
 
-        oct_data_loader_test = torch.utils.data.DataLoader(
-            oct_dataset_test, sampler=oct_sampler_test,
-            batch_size=args.batch_size,
-            num_workers=args.num_workers,
-            pin_memory=args.pin_mem,
-            drop_last=False
-        )
-        fundus_data_loader_test = torch.utils.data.DataLoader(
-            fundus_dataset_test, sampler=fundus_sampler_test,
+        data_loader_test = torch.utils.data.DataLoader(
+            dataset_test, sampler=sampler_test,
             batch_size=args.batch_size,
             num_workers=args.num_workers,
             pin_memory=args.pin_mem,
@@ -661,7 +634,7 @@ def main(args):
         misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
 
         if args.eval:
-            test_stats, auc_roc, auc_pr = evaluate_dual(oct_data_loader_test, fundus_data_loader_test, model, device, args.task, epoch=0, mode=args.task_mode, num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
+            test_stats, auc_roc, auc_pr = evaluate_dual(data_loader_test, model, device, args.task, epoch=0, mode=args.task_mode, num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
             if args.return_bal_acc:
                 test_auc_pr, test_bal_acc = auc_pr
             wandb_dict={f'test_{k}': v for k, v in test_stats.items()}
@@ -676,10 +649,9 @@ def main(args):
         best_val_stats, test_stats = {}, {}
         for epoch in range(args.start_epoch, args.epochs):
             if args.distributed:
-                oct_data_loader_train.sampler.set_epoch(epoch)
-                fundus_data_loader_train.sampler.set_epoch(epoch)
+                data_loader_train.sampler.set_epoch(epoch)
             train_stats = train_one_epoch_dual(
-                model, criterion, oct_data_loader_train, fundus_data_loader_train,
+                model, criterion, data_loader_train,
                 optimizer, device, epoch, loss_scaler,
                 args.clip_grad, mixup_fn,
                 log_writer=log_writer,
@@ -691,7 +663,7 @@ def main(args):
                     param_group['lr'] /= 2
                 print(f"Downscale the learning rate to {param_group['lr']}")
 
-            val_stats, val_auc_roc, val_auc_pr = evaluate_dual(oct_data_loader_val, fundus_data_loader_val, model, device, args.task, epoch, mode=val_mode, num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
+            val_stats, val_auc_roc, val_auc_pr = evaluate_dual(data_loader_val, model, device, args.task, epoch, mode=val_mode, num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
             if args.return_bal_acc:
                 val_auc_pr, val_bal_acc = val_auc_pr
             #eval score
@@ -711,7 +683,7 @@ def main(args):
                         args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
                         loss_scaler=loss_scaler, epoch=epoch)
                 best_val_stats = val_stats
-                test_stats,auc_roc, auc_pr = evaluate_dual(oct_data_loader_test, fundus_data_loader_test, model, device, args.task, epoch, mode='test', num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
+                test_stats,auc_roc, auc_pr = evaluate_dual(data_loader_test, model, device, args.task, epoch, mode='test', num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
 
             if log_writer is not None:
                 log_writer.add_scalar('perf/val_acc1', val_stats['acc1'], epoch)
