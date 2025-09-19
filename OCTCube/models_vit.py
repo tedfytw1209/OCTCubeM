@@ -68,6 +68,7 @@ class DualViTClassifier(nn.Module):
         self.num_classes = num_classes
         self.vit_model_1 = vit_model_1
         self.vit_model_2 = vit_model_2
+        self.blocks = nn.ModuleList(vit_model_1.blocks+vit_model_2.blocks)
 
     def forward(self, input_1, input_2):
         """
