@@ -90,6 +90,10 @@ class DualViTClassifier(nn.Module):
 
         return combined_features
 
+    def no_weight_decay(self):
+        # 不进行权重衰减的参数
+        return self.vit_model_1.no_weight_decay() + self.vit_model_2.no_weight_decay()
+
 def DualViT(**kwargs):
     model = DualViTClassifier(**kwargs)
     return model
