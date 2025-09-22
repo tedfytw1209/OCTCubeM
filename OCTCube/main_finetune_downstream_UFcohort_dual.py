@@ -224,11 +224,12 @@ def load_model_checkpoint(model, finetune, patient_dataset_type, args, pretrain_
             print(f"Removing key {k} from pretrained checkpoint")
             del checkpoint_model[k]
     # interpolate position embedding
-    if args.sep_pos_embed and (patient_dataset_type == '3D_st' or patient_dataset_type == '3D_st_flash_attn' or patient_dataset_type == '3D_st_flash_attn_nodrop' or patient_dataset_type.startswith('3D_st')):
-        interpolate_pos_embed(model, checkpoint_model)
-        interpolate_temporal_pos_embed(model, checkpoint_model, smaller_interpolate_type=args.smaller_temporal_crop)
-    else:
-        interpolate_pos_embed(model, checkpoint_model)
+    if pretrain_flag:
+        if args.sep_pos_embed and (patient_dataset_type == '3D_st' or patient_dataset_type == '3D_st_flash_attn' or patient_dataset_type == '3D_st_flash_attn_nodrop' or patient_dataset_type.startswith('3D_st')):
+            interpolate_pos_embed(model, checkpoint_model)
+            interpolate_temporal_pos_embed(model, checkpoint_model, smaller_interpolate_type=args.smaller_temporal_crop)
+        else:
+            interpolate_pos_embed(model, checkpoint_model)
 
     # load pre-trained model
     if args.load_non_flash_attn_to_flash_attn:
