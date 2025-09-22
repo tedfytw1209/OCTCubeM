@@ -176,12 +176,16 @@ def get_model(patient_dataset_type,args):
                 cls_embed=args.cls_embed,
                 use_flash_attention=True
             )
+        print('OCT sub-model:')
+        print(sub_model_oct)
         sub_model_cfp = models_vit_flash_attn.__dict__[args.model](
             img_size=args.input_size,
             num_classes=args.nb_classes,
             drop_path_rate=args.drop_path,
             global_pool=args.global_pool,
         )
+        print('Fundus sub-model:')
+        print(sub_model_cfp)
         model = models_vit.__dict__['DualViT'](
             vit_model_1=sub_model_oct, 
             vit_model_2=sub_model_cfp, 
@@ -569,9 +573,9 @@ def main(args):
         oct_model = model.vit_model_1
         fundus_model = model.vit_model_2
 
-        if args.oct_finetune and args.patient_dataset_type != 'convnext_slivit':
+        if args.oct_finetune:
             oct_model = load_model_checkpoint(oct_model, args.oct_finetune, '3D_st_flash_attn_nodrop', args, pretrain_flag=False)
-        if args.fundus_finetune and args.patient_dataset_type != 'convnext_slivit':
+        if args.fundus_finetune:
             fundus_model = load_model_checkpoint(fundus_model, args.fundus_finetune, "2D_flash_attn", args, pretrain_flag=False)
 
         model.to(device)
