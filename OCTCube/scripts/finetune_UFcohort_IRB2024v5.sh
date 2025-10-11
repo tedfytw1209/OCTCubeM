@@ -20,7 +20,8 @@ MODEL=${2:-"flash_attn_vit_large_patch16"}
 Num_CLASS=${3:-"2"}
 Eval_score=${4:-"AUC"}
 TASK_MODE=${5:-"binary_cls"}
-ADDCMD=${6:-""}
+SUBSETNUM=${6:-0} # 0, 500, 1000
+ADDCMD=${7:-""}
 
 # Example usage: sbatch scripts/finetune_UFcohort_IRB2024v5.sh AMD_all_split flash_attn_vit_large_patch16 2 AUPRC binary_cls --testval
 data_type="IRB2024_v5"
@@ -30,7 +31,7 @@ prefix=tienyuchang
 IMG_DIR=/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/
 CSV_DIR=/orange/ruogu.fang/tienyuchang/OCTRFF_Data/data/UF-cohort/${data_type}/split/tune5-eval5/${STUDY}.csv
 LOG_DIR=./log_pt/
-OUTPUT_DIR=/orange/ruogu.fang/tienyuchang/OCTCube_results/outputs_ft_st/UFcohort_${STUDY}_${data_type}_${dataset_type}_${TASK_MODE}${ADDCMD}/
+OUTPUT_DIR=/orange/ruogu.fang/tienyuchang/OCTCube_results/outputs_ft_st/UFcohort_${STUDY}_${data_type}_${dataset_type}_subtr${SUBSETNUM}_${TASK_MODE}${ADDCMD}/
 python main_finetune_downstream_UFcohort.py --nb_classes $Num_CLASS \
     --data_path $IMG_DIR \
     --csv_path $CSV_DIR \
@@ -65,6 +66,7 @@ python main_finetune_downstream_UFcohort.py --nb_classes $Num_CLASS \
     --drop_path 0.2 \
     --num_workers 0 \
     --finetune $ROOT/$prefix/OCTCubeM/ckpt/OCTCube.pth \
+    --new_subset_num $SUBSETNUM \
     --return_bal_acc \
     --not_print_logits \
     ${ADDCMD}

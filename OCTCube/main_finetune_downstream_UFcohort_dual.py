@@ -18,6 +18,7 @@ import json
 import argparse
 import datetime
 import numpy as np
+import pandas as pd
 
 from pathlib import Path
 
@@ -28,7 +29,8 @@ from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
 
 import torch
 import torch.backends.cudnn as cudnn
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, StratifiedShuffleSplit
+from torch.utils.data import Subset
 from torch.utils.tensorboard import SummaryWriter
 
 
@@ -409,6 +411,12 @@ def get_args_parser():
     #06/22 add
     parser.add_argument('--testval', action='store_true', default=False,
                         help='Use test set for validation, otherwise use val set')
+    
+    # Subset sampling parameters
+    parser.add_argument('--subset_num', default=0, type=int,
+                        help='Create subset with absolute number of samples (old method)')
+    parser.add_argument('--new_subset_num', default=0, type=int,
+                        help='Create subset with absolute number of samples (new method with separate train/val)')
 
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,
@@ -496,6 +504,127 @@ def main(args):
         dataset_train = Dual_Dataset(oct_dataset_train, fundus_dataset_train)
         dataset_val = Dual_Dataset(oct_dataset_val, fundus_dataset_val)
         dataset_test = Dual_Dataset(oct_dataset_test, fundus_dataset_test)
+        
+        # Apply subset sampling by absolute number if subset_num > 0
+        if hasattr(args, 'subset_num') and args.subset_num > 0:
+            print(f'Old subset method for absolute number {args.subset_num}')
+            
+            def create_subset_by_num(dataset, split_name, subset_num):
+                """Create a subset of the dataset with specified absolute number"""
+                targets = np.array(dataset.targets)
+                unique_classes, class_counts = np.unique(targets, return_counts=True)
+                n_classes = len(unique_classes)
+                
+                print(f'{split_name} - Original size: {len(dataset)}, Classes: {n_classes}, Target subset size: {subset_num}')
+                
+                if subset_num < n_classes:
+                    # Too small to guarantee at least one per class → fall back to plain random sample
+                    print(f'Warning: subset_num ({subset_num}) < number of classes ({n_classes}), using random sampling')
+                    rng = np.random.RandomState(args.seed)
+                    subset_indices = rng.choice(len(dataset), min(subset_num, len(dataset)), replace=False)
+                else:
+                    # Use stratified sampling to maintain class distribution
+                    if subset_num >= len(dataset):
+                        print(f'Warning: subset_num ({subset_num}) >= dataset size ({len(dataset)}), using full dataset')
+                        subset_indices = list(range(len(dataset)))
+                    else:
+                        sss = StratifiedShuffleSplit(n_splits=1, train_size=subset_num, random_state=args.seed)
+                        subset_indices = next(sss.split(range(len(dataset)), targets))[0]
+                
+                # Create subset dataset
+                subset_dataset = Subset(dataset, subset_indices)
+
+                # Add targets attribute to subset for compatibility
+                subset_dataset.targets = [dataset.targets[i] for i in subset_indices]
+                subset_dataset.classes = dataset.classes
+                subset_dataset.class_to_idx = dataset.class_to_idx
+                
+                print(f'{split_name} - Final subset size: {len(subset_dataset)}')
+                return subset_dataset
+
+            dataset_train = create_subset_by_num(dataset_train, 'Train', int(args.subset_num))
+
+        # Apply subset sampling by absolute number if new_subset_num > 0
+        if hasattr(args, 'new_subset_num') and args.new_subset_num > 0:
+            print(f'New subset method for absolute number {args.new_subset_num}')
+            def create_separate_class_based_subsets(train_dataset, val_dataset, total_subset_num):
+                """Create separate subsets from train and validation datasets based on class ratios"""
+                
+                def create_class_balanced_subset(dataset, split_name, target_size):
+                    """Create a class-balanced subset from a single dataset"""
+                    targets = np.array(dataset.targets)
+                    unique_classes, class_counts = np.unique(targets, return_counts=True)
+                    n_classes = len(unique_classes)
+                    
+                    # Calculate class ratios within this dataset
+                    class_ratios = class_counts / len(targets)
+                    
+                    print(f'\n{split_name} dataset - Original size: {len(dataset)}, Classes: {n_classes}')
+                    print(f'{split_name} class counts: {dict(zip(unique_classes, class_counts))}')
+                    print(f'{split_name} class ratios: {dict(zip(unique_classes, class_ratios))}')
+                    print(f'{split_name} target subset size: {target_size}')
+                    
+                    # Separate samples by class and permute
+                    rng = np.random.RandomState(42)
+                    selected_indices = []
+                    
+                    for class_idx in unique_classes:
+                        # Get all samples for this class
+                        class_mask = targets == class_idx
+                        class_samples = np.where(class_mask)[0]
+                        
+                        # Permute samples within this class
+                        class_samples_copy = class_samples.copy()
+                        rng.shuffle(class_samples_copy)
+                        
+                        # Calculate how many samples to select for this class
+                        class_target_samples = int((target_size-n_classes) * class_ratios[class_idx]) + 1
+                        
+                        # Ensure we don't exceed available samples
+                        available_samples = len(class_samples_copy)
+                        if class_target_samples > available_samples:
+                            print(f'Warning: {split_name} Class {class_idx} needs {class_target_samples} samples but only {available_samples} available')
+                            class_target_samples = available_samples
+                        
+                        # Select samples for this class
+                        selected_class_samples = class_samples_copy[:class_target_samples]
+                        selected_indices.extend(selected_class_samples)
+                        
+                        print(f'{split_name} Class {class_idx}: ratio={class_ratios[class_idx]:.3f}, target={class_target_samples}, selected={len(selected_class_samples)}')
+                    
+                    print('Selected indices:', selected_indices)
+                    subset_dataset = Subset(dataset, selected_indices)
+                    
+                    # Add targets attribute to subset for compatibility
+                    subset_dataset.targets = [dataset.targets[i] for i in selected_indices]
+                    subset_dataset.annotations = dataset.annotations.iloc[selected_indices].reset_index(drop=True)
+                    subset_dataset.classes = dataset.classes
+                    subset_dataset.class_to_idx = dataset.class_to_idx
+                    
+                    print(f'{split_name} final subset size: {len(subset_dataset)}')
+                    return subset_dataset
+                
+                # Calculate target sizes for train and validation (80/20 split)
+                train_target_size = int(total_subset_num * 0.8)
+                val_target_size = int(total_subset_num * 0.2)
+                
+                print(f'Total target subset size: {total_subset_num}')
+                print(f'Train target size: {train_target_size} (80%)')
+                print(f'Validation target size: {val_target_size} (20%)')
+                
+                # Create subsets separately
+                train_subset = create_class_balanced_subset(train_dataset, 'Train', train_target_size)
+                val_subset = create_class_balanced_subset(val_dataset, 'Validation', val_target_size)
+                
+                return train_subset, val_subset
+
+            dataset_train, dataset_val = create_separate_class_based_subsets(dataset_train, dataset_val, int(args.new_subset_num))
+        
+        # Print final label distribution
+        print('Final label distribution:')
+        print('Train:', pd.Series(dataset_train.targets).value_counts())
+        print('Validation:', pd.Series(dataset_val.targets).value_counts())
+        print('Test:', pd.Series(dataset_test.targets).value_counts())
         
         assert args.k_fold is False
     else:

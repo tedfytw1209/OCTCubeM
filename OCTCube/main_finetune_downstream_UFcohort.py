@@ -226,7 +226,7 @@ def get_args_parser():
                         help='path where to tensorboard log')
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
-    parser.add_argument('--seed', default=0, type=int)
+    parser.add_argument('--seed', default=42, type=int)
     parser.add_argument('--resume', default='',
                         help='resume from checkpoint')
 
@@ -399,7 +399,7 @@ def main(args):
                     print(f'{split_name} target subset size: {target_size}')
                     
                     # Separate samples by class and permute
-                    rng = np.random.RandomState(args.seed)
+                    rng = np.random.RandomState(42)
                     selected_indices = []
                     
                     for class_idx in unique_classes:
@@ -412,7 +412,7 @@ def main(args):
                         rng.shuffle(class_samples_copy)
                         
                         # Calculate how many samples to select for this class
-                        class_target_samples = int(target_size * class_ratios[class_idx])
+                        class_target_samples = int((target_size-n_classes) * class_ratios[class_idx]) + 1
                         
                         # Ensure we don't exceed available samples
                         available_samples = len(class_samples_copy)
@@ -426,10 +426,12 @@ def main(args):
                         
                         print(f'{split_name} Class {class_idx}: ratio={class_ratios[class_idx]:.3f}, target={class_target_samples}, selected={len(selected_class_samples)}')
                     
+                    print('Selected indices:', selected_indices)
                     subset_dataset = Subset(dataset, selected_indices)
                     
                     # Add targets attribute to subset for compatibility
                     subset_dataset.targets = [dataset.targets[i] for i in selected_indices]
+                    subset_dataset.annotations = dataset.annotations.iloc[selected_indices].reset_index(drop=True)
                     subset_dataset.classes = dataset.classes
                     subset_dataset.class_to_idx = dataset.class_to_idx
                     
@@ -451,7 +453,6 @@ def main(args):
                 return train_subset, val_subset
 
             dataset_train, dataset_val = create_separate_class_based_subsets(dataset_train, dataset_val, int(args.new_subset_num))
-        
         # Print final label distribution
         print('Final label distribution:')
         print('Train:', pd.Series(dataset_train.targets).value_counts())
