@@ -620,12 +620,6 @@ def main(args):
 
             dataset_train, dataset_val = create_separate_class_based_subsets(dataset_train, dataset_val, int(args.new_subset_num))
         
-        # Print final label distribution
-        print('Final label distribution:')
-        print('Train:', pd.Series(dataset_train.targets).value_counts())
-        print('Validation:', pd.Series(dataset_val.targets).value_counts())
-        print('Test:', pd.Series(dataset_test.targets).value_counts())
-        
         assert args.k_fold is False
     else:
         print('Please use other scripts for non-UFcohort dataset')
