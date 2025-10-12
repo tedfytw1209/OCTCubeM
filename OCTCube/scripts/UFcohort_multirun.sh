@@ -20,9 +20,5 @@ do
     TASK_MODE="${TASK_MODES[$i]}"
     echo "sbatch $SCRIPT $DATASET $MODEL $NUM_CLASS $Eval_score $TASK_MODE $SUBSETNUM $ADDCMD"
     # Submit the job to Slurm
-<<<<<<< HEAD
-    sbatch $SCRIPT $DATASET $MODEL $NUM_CLASS $Eval_score $TASK_MODE $ADDCMD
-=======
     sbatch $SCRIPT $DATASET $MODEL $NUM_CLASS $Eval_score $TASK_MODE $SUBSETNUM $ADDCMD
->>>>>>> a6254d4ffa382cb15ea70eb09f2097a3247c568d
 done
