@@ -22,6 +22,8 @@ MODEL="flash_attn_vit_large_patch16"
 Num_CLASS=${4:-"2"}
 Eval_score=${5:-"AUC"}
 TASK_MODE=${6:-"binary_cls"}
+SUBSETNUM=${7:-0} # 0, 500, 1000
+ADDCMD=${8:-""}
 ADDCMD="EVAL"
 
 # sbatch scripts/finetune_UFcohort_IRB2024v5_dualeval.sh AMD_all_split /orange/ruogu.fang/tienyuchang/OCTCube_results/outputs_ft_st/UFcohort_AMD_all_split_IRB2024_v5_binary_cls/checkpoint-00004.pth /orange/ruogu.fang/tienyuchang/OCTCube_results/outputs_ft_st/UFcohort_AMD_all_split_IRB2024_v5_2D_flash_attn_binary_cls/checkpoint-00059.pth 2 AUPRC binary_cls
@@ -32,7 +34,7 @@ prefix=tienyuchang
 IMG_DIR=/orange/ruogu.fang/tienyuchang/IRB2024_imgs_paired/
 CSV_DIR=/orange/ruogu.fang/tienyuchang/OCTRFF_Data/data/UF-cohort/${data_type}/split/tune5-eval5/${STUDY}.csv
 LOG_DIR=./log_pt/
-OUTPUT_DIR=/orange/ruogu.fang/tienyuchang/OCTCube_results/outputs_ft_st/UFcohort_${STUDY}_${data_type}_${TASK_MODE}${ADDCMD}/
+OUTPUT_DIR=/orange/ruogu.fang/tienyuchang/OCTCube_results/outputs_ft_st/UFcohort_${STUDY}_${data_type}_subtr${SUBSETNUM}_${TASK_MODE}${ADDCMD}/
 
 python main_finetune_downstream_UFcohort_dual.py --nb_classes $Num_CLASS \
     --data_path $IMG_DIR \
@@ -69,6 +71,7 @@ python main_finetune_downstream_UFcohort_dual.py --nb_classes $Num_CLASS \
     --num_workers 0 \
     --oct_finetune ${OCT_MODEL} \
     --fundus_finetune ${FUNDUS_MODEL} \
+    --new_subset_num $SUBSETNUM \
     --return_bal_acc \
     --not_print_logits \
     --eval

@@ -4,7 +4,8 @@ SCRIPT=$1 #AMD_all_split 2, Cataract_all_split 2, DR_all_split 6, Glaucoma_all_s
 MODEL=${2:-"flash_attn_vit_large_patch16"}
 Num_CLASS=${3:-"2"}
 Eval_score=${4:-"AUPRC"}
-ADDCMD=${5:-""}
+SUBSETNUM=${5:-0} # 0, 500, 1000
+ADDCMD=${6:-""}
 
 #bash scripts/UFcohort_multirun.sh scripts/finetune_UFcohort_IRB2024v5.sh flash_attn_vit_large_patch16 2 AUPRC
 #bash scripts/UFcohort_multirun.sh scripts/finetune_UFcohort_IRB2024v5.sh flash_attn_vit_large_patch16 2 AUC
@@ -17,7 +18,11 @@ do
     DATASET="${DATASETS[$i]}"
     NUM_CLASS="${CLASSES[$i]}"
     TASK_MODE="${TASK_MODES[$i]}"
-    echo "sbatch $SCRIPT $DATASET $MODEL $NUM_CLASS $Eval_score $TASK_MODE $ADDCMD"
+    echo "sbatch $SCRIPT $DATASET $MODEL $NUM_CLASS $Eval_score $TASK_MODE $SUBSETNUM $ADDCMD"
     # Submit the job to Slurm
+<<<<<<< HEAD
     sbatch $SCRIPT $DATASET $MODEL $NUM_CLASS $Eval_score $TASK_MODE $ADDCMD
+=======
+    sbatch $SCRIPT $DATASET $MODEL $NUM_CLASS $Eval_score $TASK_MODE $SUBSETNUM $ADDCMD
+>>>>>>> a6254d4ffa382cb15ea70eb09f2097a3247c568d
 done
