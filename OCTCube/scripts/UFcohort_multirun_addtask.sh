@@ -23,7 +23,7 @@ SUBSETNUM=${5:-0} # 0, 500, 1000
 ADDCMD=${6:-""}
 
 #bash scripts/UFcohort_multirun_addtask.sh scripts/finetune_UFcohort_IRB2024v5.sh flash_attn_vit_large_patch16 2 AUPRC
-#bash scripts/UFcohort_multirun_addtask.sh scripts/finetune_UFcohort_IRB2024v5.sh flash_attn_vit_large_patch16 2 AUC
+#sbatch scripts/UFcohort_multirun_addtask.sh scripts/finetune_UFcohort_IRB2024v5.sh flash_attn_vit_large_patch16 2 AUC 500
 DATASETS=(DME_all_split CSR_all_split Drusen_all_split ERM_all_split MH_all_split CRVO_CRAO_all_split PVD_all_split RNV_all_split DME_binary_all_split) 
 CLASSES=(5 2 2 2 2 2 2 2 2)  # Number of classes for each dataset
 TASK_MODES=(multi_cls binary_cls binary_cls binary_cls binary_cls binary_cls binary_cls binary_cls binary_cls)  # Task mode, can be changed as needed
