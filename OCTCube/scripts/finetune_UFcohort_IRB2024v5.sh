@@ -23,7 +23,7 @@ TASK_MODE=${5:-"binary_cls"}
 SUBSETNUM=${6:-0} # 0, 500, 1000
 ADDCMD=${7:-""}
 
-# Example usage: sbatch scripts/finetune_UFcohort_IRB2024v5.sh AMD_all_split flash_attn_vit_large_patch16 2 AUPRC binary_cls --testval
+# Example usage: sbatch scripts/finetune_UFcohort_IRB2024v5.sh AMD_all_split flash_attn_vit_large_patch16 2 AUPRC binary_cls 500 --testval
 data_type="IRB2024_v5"
 dataset_type="3D_st_flash_attn_nodrop"
 ROOT=/blue/ruogu.fang
