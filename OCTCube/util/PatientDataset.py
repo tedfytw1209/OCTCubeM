@@ -180,6 +180,17 @@ class PatientDataset3D(Dataset):
 
         self.transform_type = transform_type
         self.same_3_frames = same_3_frames
+        
+        targets = []
+        for idx in range(len(self)):
+            if self.iterate_mode == 'patient':
+                patient_id = list(self.patients.keys())[idx]
+                data_dict = self.patients[patient_id]
+            elif self.iterate_mode == 'visit':
+                data_dict = self.visits_dict[idx]
+                patient_id = self.mapping_visit2patient[idx]
+            targets.append(data_dict['class_idx'])
+        self.targets = targets
 
 
     def _load_ai_readi_data(self, aireadi_directory=None):
@@ -1067,7 +1078,17 @@ class PatientDatasetCenter2D(Dataset):
 
         for key, value in kwargs.items():
             setattr(self, key, value)
-
+        
+        targets = []
+        for idx in range(len(self)):
+            if self.iterate_mode == 'patient':
+                patient_id = list(self.patients.keys())[idx]
+                data_dict = self.patients[patient_id]
+            elif self.iterate_mode == 'visit':
+                data_dict = self.visits_dict[idx]
+                patient_id = self.mapping_visit2patient[idx]
+            targets.append(data_dict['class_idx'])
+        self.targets = targets
 
     def _load_ai_readi_data(self, aireadi_directory=None):
         # Assume self.root_dir is the path to the the AI-READI dataset

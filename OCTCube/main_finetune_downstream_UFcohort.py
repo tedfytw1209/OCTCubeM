@@ -430,10 +430,7 @@ def main(args):
                     subset_dataset = Subset(dataset, selected_indices)
                     
                     # Add targets attribute to subset for compatibility
-                    subset_dataset.targets = [dataset.targets[i] for i in selected_indices]
-                    subset_dataset.annotations = dataset.annotations.iloc[selected_indices].reset_index(drop=True)
-                    subset_dataset.classes = dataset.classes
-                    subset_dataset.class_to_idx = dataset.class_to_idx
+                    
                     
                     print(f'{split_name} final subset size: {len(subset_dataset)}')
                     return subset_dataset
