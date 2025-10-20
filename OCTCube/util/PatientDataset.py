@@ -671,7 +671,7 @@ class PatientDataset3D(Dataset):
 
     def __len__(self):
         if self.dataset_mode == 'frame':
-            return len(self.patients)
+            return len(self.visits_dict)
         elif self.dataset_mode == 'volume':
             return len(self.visits_dict)
         elif self.dataset_mode == 'dicom_aireadi':
@@ -1573,7 +1573,7 @@ class PatientDatasetCenter2D(Dataset):
 
     def __len__(self):
         if self.dataset_mode == 'frame':
-            return len(self.patients)
+            return len(self.visits_dict)
         elif self.dataset_mode == 'volume':
             return len(self.visits_dict)
         elif self.dataset_mode == 'dicom_aireadi':
