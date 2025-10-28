@@ -16,10 +16,10 @@ from functools import partial
 import torch
 import torch.nn as nn
 
-import timm.vision_transformer
+import timm.models.vision_transformer
 
 
-class VisionTransformer(timm.vision_transformer.VisionTransformer):
+class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
     """ Vision Transformer with support for global average pooling
     """
     def __init__(self, global_pool=False, **kwargs):
