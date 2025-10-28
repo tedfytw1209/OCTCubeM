@@ -51,7 +51,7 @@ python main_finetune_downstream_UFcohort.py --nb_classes $Num_CLASS \
     --input_size 128 \
     --log_dir ${LOG_DIR} \
     --output_dir ${OUTPUT_DIR} \
-    --batch_size 16 \
+    --batch_size 8 \
     --val_batch_size 16 \
     --warmup_epochs 10 \
     --world_size 1 \
