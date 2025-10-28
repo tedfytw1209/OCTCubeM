@@ -16,7 +16,7 @@ from functools import partial
 import torch
 import torch.nn as nn
 
-import timm.models.vision_transformer
+import timm.vision_transformer
 # from models_vit import VisionTransformer as VisionTransformer2DCenterHead
 import sys
 

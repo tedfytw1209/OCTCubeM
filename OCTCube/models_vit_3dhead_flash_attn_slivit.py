@@ -18,7 +18,7 @@ import sys
 import torch
 import torch.nn as nn
 
-import timm.models.vision_transformer
+import timm.vision_transformer
 # from models_vit_flash_attn import VisionTransformer as VisionTransformer2DCenterHead
 try:
     # Case 1: Running from OCTCubeM/

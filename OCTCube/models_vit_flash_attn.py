@@ -20,7 +20,7 @@ import torch.nn as nn
 from einops import rearrange
 from collections import OrderedDict
 
-import timm.models.vision_transformer
+import timm.vision_transformer
 from flash_attn.models.vit import create_block
 from timm.layers import to_2tuple
 
