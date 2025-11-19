@@ -250,6 +250,8 @@ def get_args_parser():
                         help='Create subset with absolute number of samples (old method)')
     parser.add_argument('--new_subset_num', default=0, type=int,
                         help='Create subset with absolute number of samples (new method with separate train/val)')
+    parser.add_argument('--droplast', action='store_true', default=False,
+                        help='Drop the last incomplete batch, if the dataset size is not divisible by the batch size')
 
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,
@@ -377,6 +379,7 @@ def main(args):
                 return subset_dataset
 
             dataset_train = create_subset_by_num(dataset_train, 'Train', int(args.subset_num))
+            args.droplast = False  # Disable droplast when using old subset method
 
         # Apply subset sampling by absolute number if new_subset_num > 0
         if hasattr(args, 'new_subset_num') and args.new_subset_num > 0:
@@ -450,6 +453,7 @@ def main(args):
                 return train_subset, val_subset
 
             dataset_train, dataset_val = create_separate_class_based_subsets(dataset_train, dataset_val, int(args.new_subset_num))
+            args.droplast = False  # Disable droplast when using old subset method
         
         assert args.k_fold is False
     else:
@@ -552,7 +556,7 @@ def main(args):
                 batch_size=args.batch_size,
                 num_workers=args.num_workers,
                 pin_memory=args.pin_mem,
-                drop_last=True,
+                drop_last=args.droplast,
             )
 
             data_loader_val = torch.utils.data.DataLoader(
