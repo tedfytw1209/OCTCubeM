@@ -3,7 +3,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem-per-cpu=12gb
-#SBATCH --partition=hpg-turin
+#SBATCH --partition=hpg-b200
 #SBATCH --gpus=1
 #SBATCH --time=72:00:00
 #SBATCH --output=%x.%j.out
