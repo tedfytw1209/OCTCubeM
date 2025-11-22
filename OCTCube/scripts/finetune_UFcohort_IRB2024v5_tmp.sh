@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=16
-#SBATCH --mem-per-cpu=8gb
+#SBATCH --cpus-per-task=8
+#SBATCH --mem-per-cpu=12gb
 #SBATCH --partition=hpg-turin
 #SBATCH --gpus=1
 #SBATCH --time=72:00:00
@@ -52,7 +52,7 @@ python main_finetune_downstream_UFcohort.py --nb_classes $Num_CLASS \
     --log_dir ${LOG_DIR} \
     --output_dir ${OUTPUT_DIR} \
     --batch_size 8 \
-    --val_batch_size 16 \
+    --val_batch_size 32 \
     --warmup_epochs 10 \
     --world_size 1 \
     --model $MODEL \
