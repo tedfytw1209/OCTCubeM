@@ -3,7 +3,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem-per-cpu=12gb
-#SBATCH --partition=hpg-b200
+#SBATCH --partition=hpg-turin
 #SBATCH --gpus=1
 #SBATCH --time=72:00:00
 #SBATCH --output=%x.%j.out
@@ -23,7 +23,7 @@ TASK_MODE=${5:-"binary_cls"}
 SUBSETNUM=${6:-0} # 0, 500, 1000
 ADDCMD=${7:-""}
 
-# Example usage: sbatch scripts/finetune_UFcohort_IRB2024v5.sh Diabetes_all_split flash_attn_vit_large_patch16 2 AUC binary_cls 0
+# Example usage: sbatch scripts/finetune_UFcohort_IRB2024v5_diabete.sh Diabetes_all_split flash_attn_vit_large_patch16 2 AUC binary_cls 0
 data_type="IRB2024_v5"
 dataset_type="3D_st_flash_attn_nodrop"
 ROOT=/blue/ruogu.fang
