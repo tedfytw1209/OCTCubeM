@@ -342,6 +342,7 @@ def main(args):
         dataset_test.update_transform(val_transform)
         
         # Apply subset sampling by absolute number if subset_num > 0
+        args.droplast = True  # Default to True
         if hasattr(args, 'subset_num') and args.subset_num > 0:
             print(f'Old subset method for absolute number {args.subset_num}')
             
