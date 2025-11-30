@@ -36,7 +36,7 @@ do
     DATASET="${DATASETS[$i]}"
     NUM_CLASS="${CLASSES[$i]}"
     TASK_MODE="${TASK_MODES[$i]}"
-    echo "bash $SCRIPT $DATASET $MODEL $NUM_CLASS $Eval_score $TASK_MODE $SUBSETNUM $ADDCMD"
+    echo "sbatch $SCRIPT $DATASET $MODEL $NUM_CLASS $Eval_score $TASK_MODE $SUBSETNUM $ADDCMD"
     # Submit the job to Slurm
-    bash $SCRIPT $DATASET $MODEL $NUM_CLASS $Eval_score $TASK_MODE $SUBSETNUM $ADDCMD
+    sbatch $SCRIPT $DATASET $MODEL $NUM_CLASS $Eval_score $TASK_MODE $SUBSETNUM $ADDCMD
 done
