@@ -252,6 +252,7 @@ def get_args_parser():
                         help='Create subset with absolute number of samples (new method with separate train/val)')
     parser.add_argument('--droplast', action='store_true', default=False,
                         help='Drop the last incomplete batch, if the dataset size is not divisible by the batch size')
+    parser.add_argument('--bootstrap_runs', action='store_true', default=False, help="Doing bootstrap sampling for training dataset")
 
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,
@@ -270,10 +271,17 @@ def main(args):
     print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
     print("{}".format(args).replace(', ', ',\n'))
     
+    if args.bootstrap_runs:
+        project_name = "OCTCubeM_bootstrap"
+        group_name = f"{args.task}_bootstrap_group"
+    else:
+        project_name = "OCTCubeM"
+        group_name = None
     wandb_task_name = args.task.replace('.','').replace('/', '_') + datetime.datetime.now().strftime("_%Y%m%d_%H%M%S")
     wandb.init(
-        project="OCTCubeM",
+        project=project_name,
         name=wandb_task_name,
+        group=group_name,
         config=args,
         dir=os.path.join(args.log_dir,wandb_task_name),
     )
@@ -403,7 +411,7 @@ def main(args):
                     print(f'{split_name} target subset size: {target_size}')
                     
                     # Separate samples by class and permute
-                    rng = np.random.RandomState(42)
+                    rng = np.random.RandomState(args.seed)
                     selected_indices = []
                     
                     for class_idx in unique_classes:
