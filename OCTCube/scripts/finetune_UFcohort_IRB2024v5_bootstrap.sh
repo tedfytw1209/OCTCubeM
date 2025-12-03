@@ -3,9 +3,9 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem-per-cpu=12gb
-#SBATCH --partition=hpg-b200
+#SBATCH --partition=hpg-turin
 #SBATCH --gpus=1
-#SBATCH --time=72:00:00
+#SBATCH --time=48:00:00
 #SBATCH --output=%x.%j.out
 #SBATCH --account=ruogu.fang
 #SBATCH --qos=ruogu.fang
@@ -52,7 +52,7 @@ python main_finetune_downstream_UFcohort.py --nb_classes $Num_CLASS \
     --log_dir ${LOG_DIR} \
     --output_dir ${OUTPUT_DIR} \
     --batch_size 8 \
-    --val_batch_size 32 \
+    --val_batch_size 16 \
     --warmup_epochs 10 \
     --world_size 1 \
     --model $MODEL \
@@ -60,7 +60,7 @@ python main_finetune_downstream_UFcohort.py --nb_classes $Num_CLASS \
     --patient_dataset_type $dataset_type \
     --transform_type monai_3D \
     --color_mode gray \
-    --epochs 50 \
+    --epochs 100 \
     --blr 5e-3 \
     --layer_decay 0.65 \
     --weight_decay 0.05 \

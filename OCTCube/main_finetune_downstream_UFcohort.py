@@ -252,6 +252,7 @@ def get_args_parser():
                         help='Create subset with absolute number of samples (new method with separate train/val)')
     parser.add_argument('--droplast', action='store_true', default=False,
                         help='Drop the last incomplete batch, if the dataset size is not divisible by the batch size')
+    parser.add_argument('--subsetseed', default=42, type=int)
     parser.add_argument('--bootstrap_runs', action='store_true', default=False, help="Doing bootstrap sampling for training dataset")
 
     # distributed training parameters
@@ -270,26 +271,31 @@ def main(args):
 
     print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
     print("{}".format(args).replace(', ', ',\n'))
-    
+
     if args.bootstrap_runs:
         project_name = "OCTCubeM_bootstrap"
-        group_name = f"{args.task}_bootstrap_group"
+        args.task = args.task[:120]  # Wandb group name max length is 128
+        group_name = args.task.replace('.','').replace('/', '_')
+        wandb_task_name = "seed_" + str(args.subsetseed)
+        model_add_dir = "seed_" + str(args.subsetseed)
     else:
         project_name = "OCTCubeM"
+        wandb_task_name = args.task.replace('.','').replace('/', '_') + datetime.datetime.now().strftime("_%Y%m%d_%H%M%S")
         group_name = None
-    wandb_task_name = args.task.replace('.','').replace('/', '_') + datetime.datetime.now().strftime("_%Y%m%d_%H%M%S")
+        model_add_dir = ""
+    
     wandb.init(
         project=project_name,
         name=wandb_task_name,
         group=group_name,
         config=args,
-        dir=os.path.join(args.log_dir,wandb_task_name),
+        dir=os.path.join(args.log_dir,wandb_task_name, model_add_dir),
     )
 
     # Save args to a json file
     if args.output_dir:
-        os.makedirs(args.output_dir, exist_ok=True)
-        with open(os.path.join(args.output_dir, 'args.json'), 'w') as f:
+        os.makedirs(os.path.join(args.output_dir, model_add_dir), exist_ok=True)
+        with open(os.path.join(args.output_dir, model_add_dir, 'args.json'), 'w') as f:
             json.dump(vars(args), f, indent=2)
 
     device = torch.device(args.device)
@@ -365,7 +371,7 @@ def main(args):
                 if subset_num < n_classes:
                     # Too small to guarantee at least one per class → fall back to plain random sample
                     print(f'Warning: subset_num ({subset_num}) < number of classes ({n_classes}), using random sampling')
-                    rng = np.random.RandomState(args.seed)
+                    rng = np.random.RandomState(args.subsetseed)
                     subset_indices = rng.choice(len(dataset), min(subset_num, len(dataset)), replace=False)
                 else:
                     # Use stratified sampling to maintain class distribution
@@ -373,7 +379,7 @@ def main(args):
                         print(f'Warning: subset_num ({subset_num}) >= dataset size ({len(dataset)}), using full dataset')
                         subset_indices = list(range(len(dataset)))
                     else:
-                        sss = StratifiedShuffleSplit(n_splits=1, train_size=subset_num, random_state=args.seed)
+                        sss = StratifiedShuffleSplit(n_splits=1, train_size=subset_num, random_state=args.subsetseed)
                         subset_indices = next(sss.split(range(len(dataset)), targets))[0]
                 
                 # Create subset dataset
@@ -411,7 +417,7 @@ def main(args):
                     print(f'{split_name} target subset size: {target_size}')
                     
                     # Separate samples by class and permute
-                    rng = np.random.RandomState(args.seed)
+                    rng = np.random.RandomState(args.subsetseed)
                     selected_indices = []
                     
                     for class_idx in unique_classes:
@@ -1305,7 +1311,9 @@ def main(args):
 
         print("criterion = %s" % str(criterion))
 
-        misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
+        #if resume training
+        if args.resume:
+            misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler, model_add_dir=model_add_dir)
 
         if args.eval:
             test_stats, auc_roc, auc_pr = evaluate(data_loader_test, model, device, args.task, epoch=0, mode=test_mode, num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
@@ -1355,7 +1363,7 @@ def main(args):
                 if args.output_dir:
                     misc.save_model(
                         args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
-                        loss_scaler=loss_scaler, epoch=epoch)
+                        loss_scaler=loss_scaler, epoch=epoch, model_add_dir=model_add_dir)
                 best_val_stats = val_stats
                 #test_stats,auc_roc, auc_pr = evaluate(data_loader_test, model, device, args.task,epoch, mode='test', num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
 
@@ -1371,7 +1379,7 @@ def main(args):
             if args.output_dir and misc.is_main_process():
                 if log_writer is not None:
                     log_writer.flush()
-                with open(os.path.join(args.output_dir, "log.txt"), mode="a") as f:
+                with open(os.path.join(args.output_dir, model_add_dir, "log.txt"), mode="a") as f:
                     f.write(json.dumps(log_stats) + "\n")
                 wandb_dict = {"epoch": epoch}
                 wandb_dict.update({f'train_{k}': v for k, v in train_stats.items()})
@@ -1382,7 +1390,8 @@ def main(args):
         wandb_dict.update({f'best_val_{k}': v for k, v in best_val_stats.items()})
         wandb.log(wandb_dict)
         #Load best val model for testing
-        misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
+        args.resume = 'latest'
+        misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler, model_add_dir=model_add_dir)
         test_stats,auc_roc, auc_pr = evaluate(data_loader_test, model, device, args.task,epoch, mode='test', num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
         wandb_dict = {}
         wandb_dict.update({f'test_{k}': v for k, v in test_stats.items()})

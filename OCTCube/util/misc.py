@@ -308,13 +308,13 @@ def get_grad_norm_(parameters, norm_type: float = 2.0) -> torch.Tensor:
     return total_norm
 
 
-def save_model(args, epoch, model, model_without_ddp, optimizer, loss_scaler):
+def save_model(args, epoch, model, model_without_ddp, optimizer, loss_scaler, model_add_dir=""):
     #output_dir = Path(args.output_dir + datetime.datetime.now().strftime("_%Y%m%d_%H%M%S"))
     #os.makedirs(output_dir, exist_ok=True)
     #epoch_name = str(epoch)
     if loss_scaler is not None:
         # checkpoint_paths = [args.task+f'checkpoint-{epoch}.pth']
-        checkpoint_paths = ["{}/checkpoint-{:05d}.pth".format(args.output_dir, epoch)]
+        checkpoint_paths = ["{}/checkpoint-{:05d}.pth".format(os.path.join(args.output_dir, model_add_dir), epoch)]
         for checkpoint_path in checkpoint_paths:
             to_save = {
                 'model': model_without_ddp.state_dict(),
@@ -327,16 +327,16 @@ def save_model(args, epoch, model, model_without_ddp, optimizer, loss_scaler):
             save_on_master(to_save, checkpoint_path)
     else:
         client_state = {'epoch': epoch}
-        model.save_checkpoint(save_dir=args.output_dir, tag="checkpoint-best", client_state=client_state)
+        model.save_checkpoint(save_dir=os.path.join(args.output_dir, model_add_dir), tag="checkpoint-best", client_state=client_state)
 
 
-def get_last_checkpoint(args):
+def get_last_checkpoint(args, model_add_dir=""):
     """
     Get the last checkpoint from the checkpointing folder.
     Args:
         path_to_job (string): the path to the folder of the current job.
     """
-    d = args.output_dir
+    d = os.path.join(args.output_dir, model_add_dir)
     names = pathmgr.ls(d) if pathmgr.exists(d) else []
     names = [f for f in names if "checkpoint" in f]
     if len(names) == 0:
@@ -347,10 +347,10 @@ def get_last_checkpoint(args):
         name = sorted(names)[-1]
         return os.path.join(d, name)
 
-def load_model(args, model_without_ddp, optimizer=None, loss_scaler=None, only_model=False):
-    print('args.resume:', args.resume)
+def load_model(args, model_without_ddp, optimizer=None, loss_scaler=None, only_model=False, model_add_dir=""):
     if args.resume == 'latest':
-        args.resume = get_last_checkpoint(args)
+        args.resume = get_last_checkpoint(args, model_add_dir=model_add_dir)
+    print('resume pth:', args.resume)
     if args.resume:
         if args.resume.startswith('https'):
             checkpoint = torch.hub.load_state_dict_from_url(
@@ -367,6 +367,8 @@ def load_model(args, model_without_ddp, optimizer=None, loss_scaler=None, only_m
             if 'scaler' in checkpoint:
                 loss_scaler.load_state_dict(checkpoint['scaler'])
             print("With optim & sched!")
+    else:
+        raise ValueError("Checkpoint '%s' not found" % args.resume)
 
 
 def all_reduce_mean(x):
