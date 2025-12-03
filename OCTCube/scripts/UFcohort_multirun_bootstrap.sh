@@ -2,10 +2,10 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem-per-cpu=8gb
+#SBATCH --mem-per-cpu=12gb
 #SBATCH --partition=hpg-turin
 #SBATCH --gpus=1
-#SBATCH --time=48:00:00
+#SBATCH --time=72:00:00
 #SBATCH --output=%x.%j.out
 #SBATCH --account=ruogu.fang
 #SBATCH --qos=ruogu.fang
@@ -16,27 +16,22 @@ module purge
 module load conda
 conda activate octcube
 
-SCRIPT=$1 #AMD_all_split 2, Cataract_all_split 2, DR_all_split 6, Glaucoma_all_split 6, DR_all_split_binary 2, Glaucoma_all_split_binary 2
+SCRIPT="scripts/finetune_UFcohort_IRB2024v5_bootstrap.sh"
+DATASET=$1 #DATASETS=(AMD_all_split Cataract_all_split DR_all_split Glaucoma_all_split DR_binary_all_split Glaucoma_binary_all_split DR_filtered_all_split DR_fbinary_all_split Glaucoma_filtered_all_split Glaucoma_fbinary_all_split) 
 MODEL=${2:-"flash_attn_vit_large_patch16"}
-Num_CLASS=${3:-"2"}
+NUM_CLASS=${3:-"2"}
 Eval_score=${4:-"AUPRC"}
-SUBSETNUM=${5:-0} # 0, 500, 1000
-ADDCMD=${6:-""}
+TASK_MODE=${5:-"binary_cls"}
+SUBSETNUM=${6:-500} # 0, 500, 1000
+ADDCMD=${7:-""}
 
-#bash scripts/UFcohort_multirun.sh scripts/finetune_UFcohort_IRB2024v5.sh flash_attn_vit_large_patch16 2 AUPRC
-#sbatch scripts/UFcohort_multirun.sh scripts/finetune_UFcohort_IRB2024v5.sh flash_attn_vit_large_patch16 2 AUC 500
-#DATASETS=(AMD_all_split Cataract_all_split DR_all_split Glaucoma_all_split DR_binary_all_split Glaucoma_binary_all_split DR_filtered_all_split DR_fbinary_all_split Glaucoma_filtered_all_split Glaucoma_fbinary_all_split)  # List of datasets
-#CLASSES=(2 2 6 6 2 2 5 2 4 2)  # Number of classes for each dataset
-DATASETS=(DR_filtered_all_split DR_fbinary_all_split Glaucoma_filtered_all_split Glaucoma_fbinary_all_split)  # List of datasets
-CLASSES=(5 2 4 2)  # Number of classes for each dataset
-TASK_MODES=(multi_cls binary_cls multi_cls binary_cls)  # Task mode, can be changed as needed
-for i in "${!DATASETS[@]}"
+#sbatch scripts/UFcohort_multirun_bootstrap.sh AMD_all_split flash_attn_vit_large_patch16 2 AUC binary_cls 500
+SUBSET_SEEDS=(1 2 3 4 5 6 7 8 9 10)
+for i in "${!SUBSET_SEEDS[@]}"
 do
     # Create a job name based on the variables
-    DATASET="${DATASETS[$i]}"
-    NUM_CLASS="${CLASSES[$i]}"
-    TASK_MODE="${TASK_MODES[$i]}"
-    echo "sbatch $SCRIPT $DATASET $MODEL $NUM_CLASS $Eval_score $TASK_MODE $SUBSETNUM $ADDCMD"
+    SUBSETSEED="${SUBSET_SEEDS[$i]}"
+    echo "bash $SCRIPT $DATASET $MODEL $NUM_CLASS $Eval_score $TASK_MODE $SUBSETNUM $SUBSETSEED $ADDCMD"
     # Submit the job to Slurm
-    sbatch $SCRIPT $DATASET $MODEL $NUM_CLASS $Eval_score $TASK_MODE $SUBSETNUM $ADDCMD
+    bash $SCRIPT $DATASET $MODEL $NUM_CLASS $Eval_score $TASK_MODE $SUBSETNUM $SUBSETSEED $ADDCMD
 done
