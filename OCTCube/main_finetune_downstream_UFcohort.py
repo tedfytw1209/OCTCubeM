@@ -561,8 +561,8 @@ def main(args):
                 sampler_test = sampler_val
 
             if global_rank == 0 and args.log_dir is not None and not args.eval:
-                os.makedirs(args.log_dir, exist_ok=True)
-                log_writer = SummaryWriter(log_dir=args.log_dir+args.task)
+                os.makedirs(os.path.join(args.log_dir,args.task), exist_ok=True)
+                log_writer = SummaryWriter(log_dir=os.path.join(args.log_dir,args.task))
             else:
                 log_writer = None
 
@@ -778,7 +778,7 @@ def main(args):
 
             if args.eval:
                 test_mode = f'test_fold_{fold}'
-                init_csv_writer(args.task, mode=test_mode)
+                init_csv_writer(os.path.join(args.log_dir,args.task), mode=test_mode)
                 test_stats, auc_roc, auc_pr = evaluate(data_loader_test, model, device, args.task, epoch=0, mode=test_mode, num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
                 if args.return_bal_acc:
                     test_auc_pr, test_bal_acc = auc_pr
@@ -801,7 +801,7 @@ def main(args):
             max_bal_acc_test = 0.0
 
             if args.task_mode == 'binary_cls':
-                init_csv_writer(args.task, mode=val_mode)
+                init_csv_writer(os.path.join(args.log_dir,args.task), mode=val_mode)
 
             for epoch in range(args.start_epoch, args.epochs):
                 if args.distributed:
@@ -910,9 +910,9 @@ def main(args):
                             args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler, epoch=epoch)
                 if max_flag or epoch == (args.epochs - 1):
                     test_mode = f'test_fold_{fold}'
-                    init_csv_writer(args.task, mode=test_mode)
+                    init_csv_writer(os.path.join(args.log_dir,args.task), mode=test_mode)
                     try:
-                        test_stats, test_auc_roc, test_auc_pr = evaluate(data_loader_test, model, device, args.task, epoch, mode=test_mode, num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=disease_list, return_bal_acc=args.return_bal_acc, args=args)
+                        test_stats, test_auc_roc, test_auc_pr = evaluate(data_loader_test, model, device, os.path.join(args.log_dir,args.task), epoch, mode=test_mode, num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=disease_list, return_bal_acc=args.return_bal_acc, args=args)
                         if args.return_bal_acc:
                             test_auc_pr, test_bal_acc = test_auc_pr
                     except ValueError as e:
@@ -1077,8 +1077,8 @@ def main(args):
 
 
         if global_rank == 0 and args.log_dir is not None and not args.eval:
-            os.makedirs(args.log_dir, exist_ok=True)
-            log_writer = SummaryWriter(log_dir=args.log_dir+args.task)
+            os.makedirs(os.path.join(args.log_dir,args.task), exist_ok=True)
+            log_writer = SummaryWriter(log_dir=os.path.join(args.log_dir,args.task))
         else:
             log_writer = None
 
@@ -1316,7 +1316,7 @@ def main(args):
             misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler, model_add_dir=model_add_dir)
 
         if args.eval:
-            test_stats, auc_roc, auc_pr = evaluate(data_loader_test, model, device, args.task, epoch=0, mode=test_mode, num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
+            test_stats, auc_roc, auc_pr = evaluate(data_loader_test, model, device, os.path.join(args.log_dir,args.task), epoch=0, mode=test_mode, num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
             if args.return_bal_acc:
                 test_auc_pr, test_bal_acc = auc_pr
             wandb_dict={f'test_{k}': v for k, v in test_stats.items()}
@@ -1345,7 +1345,7 @@ def main(args):
                     param_group['lr'] /= 2
                 print(f"Downscale the learning rate to {param_group['lr']}")
 
-            val_stats, val_auc_roc, val_auc_pr = evaluate(data_loader_val, model, device, args.task, epoch, mode=val_mode, num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
+            val_stats, val_auc_roc, val_auc_pr = evaluate(data_loader_val, model, device, os.path.join(args.log_dir,args.task), epoch, mode=val_mode, num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
             if args.return_bal_acc:
                 val_auc_pr, val_bal_acc = val_auc_pr
             #eval score
@@ -1392,7 +1392,7 @@ def main(args):
         #Load best val model for testing
         args.resume = 'latest'
         misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler, model_add_dir=model_add_dir)
-        test_stats,auc_roc, auc_pr = evaluate(data_loader_test, model, device, args.task,epoch, mode='test', num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
+        test_stats,auc_roc, auc_pr = evaluate(data_loader_test, model, device, os.path.join(args.log_dir,args.task), epoch, mode='test', num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
         wandb_dict = {}
         wandb_dict.update({f'test_{k}': v for k, v in test_stats.items()})
         wandb.log(wandb_dict)
