@@ -32,6 +32,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from util.focal_loss import FocalLoss2d # type: ignore
 from util.WeightedLabelSmoothingCrossEntropy import WeightedLabelSmoothingCrossEntropy # type: ignore
+#fairness imports
+from util.uncertainty_fairness_enhanced import UncertaintyQuantifier
+from util.fairness import FairnessAnalyzerWithCI, bootstrap_ci
+from util.fairness import fariness_score
 
 def multi_label_target_to_multi_task_target(target,):
     num_classes = target.shape[1]
@@ -855,3 +859,502 @@ def evaluate(data_loader, model, device, task, epoch, mode, num_class, criterion
     else:
         return eval_stats, auc_roc, auc_pr
 
+@torch.no_grad()
+def evaluate_wfiarness(data_loader, model, device, task, epoch, mode, num_class, criterion=torch.nn.CrossEntropyLoss(), task_mode='binary_cls', disease_list=None, return_bal_acc=False, args=None, protect_image_names=None, prevalent_image_names=None):
+
+    metric_logger = misc.MetricLogger(delimiter="  ")
+    header = 'Test:'
+
+    if not os.path.exists(task):
+        os.makedirs(task)
+
+    prediction_decode_list = []
+    prediction_list = []
+    true_label_list = [] # for regression task
+    true_label_decode_list = []
+    true_label_onehot_list = []
+
+    # For regression task, we'll handle separately
+    if task_mode == 'regression':
+        regression_metrics = {'pearsonr': [], 'r2': [], 'explained_variance': [], 'mse': [], 'mae': [], 'loss': 0}
+
+    if task_mode == 'multi_label' or task_mode.startswith('multi_task'):
+        multi_label_probs = []
+        target_list = []
+        threshold = 0.5
+        if task_mode.startswith('multi_task'):
+            measure_func = misc_measures_multi_task
+        else:
+            measure_func = misc_measures_multi_label
+
+    # switch to evaluation mode
+    model.eval()
+    if not hasattr(args, 'frame_inference_all'):
+        args.frame_inference_all = False
+
+    if args.frame_inference_all:
+        patient_id_list = []
+        visit_hash_list = []
+        embeddings_list = []
+        targets_list = []
+
+    for i, batch in enumerate(metric_logger.log_every(data_loader, 1, header)):
+        images = batch[0]
+        target = batch[-1]
+
+        if args.frame_inference_all:
+            all_info = target
+            target = all_info[0]
+            patient_id = all_info[1]
+            visit_hash = all_info[2]
+            print('patient_id:', patient_id, 'visit_hash:', visit_hash, 'target:', target)
+
+            sample_num = images.shape[0]
+            frame_num = images.shape[1]
+            if args.patient_dataset_type.startswith('Center2D'):
+                images = images.reshape(-1, images.shape[2], images.shape[3], images.shape[4])
+
+
+                print('target before:', target.shape)
+                target = torch.repeat_interleave(target, frame_num, dim=0)
+                print('target after:', target.shape)
+
+            patient_id_list.extend(patient_id)
+            visit_hash_list.extend(visit_hash)
+            targets_list.extend(target.cpu().detach().numpy())
+
+        # Check if the criterion is BCEWithLogitsLoss and convert targets to float if it is
+        if isinstance(criterion, torch.nn.BCEWithLogitsLoss) or isinstance(criterion, FocalLoss2d):
+            target = target.float()
+        if args.variable_joint:
+            images, images_high_res = images
+            images_high_res = images_high_res.to(device, non_blocking=True)
+
+        images = images.to(device, non_blocking=True)
+        target = target.to(device, non_blocking=True)
+
+        true_label = F.one_hot(target.to(torch.int64), num_classes=num_class) if (task_mode == 'binary_cls' or task_mode == 'multi_cls') else target
+        if args.patient_dataset_type == 'convnext_slivit':
+            images = images.permute(0, 2, 3, 4, 1)
+            images = images.reshape(-1, images.shape[1], images.shape[2], images.shape[3] * images.shape[4])
+        # compute output
+        with torch.cuda.amp.autocast():
+            if hasattr(args, 'return_embeddings') and args.return_embeddings:
+                output, embeddings = model(images, return_embeddings=args.return_embeddings)
+
+            else:
+                if args.variable_joint:
+                    output = model(images, images_high_res)
+                else:
+                    output = model(images)
+
+            loss = criterion(output, target)
+
+            if task_mode == 'regression':
+                if len(target.shape) > 1:
+                    target = target[:, 0]
+                    output = output[:, 0]
+                prediction_list.extend(output.cpu().detach().numpy().flatten())
+                true_label_list.extend(target.cpu().detach().numpy().flatten())
+
+            # For classification tasks (binary, multi-class, etc.)
+            else:
+                prediction_softmax = nn.Softmax(dim=1)(output)
+
+                _, prediction_decode = torch.max(prediction_softmax, 1)
+                _, true_label_decode = torch.max(true_label, 1)
+
+                if args.frame_inference_all:
+                    if hasattr(args, 'return_embeddings') and args.return_embeddings:
+                        embeddings_list.extend(embeddings.cpu().detach().numpy())
+                    prediction_softmax = prediction_softmax.reshape(sample_num, frame_num, -1)
+                    if args.patient_dataset_type.startswith('Center2D'):
+
+                        total_size = torch.prod(torch.tensor(target.shape)).item()
+                        if total_size // (sample_num * frame_num) > 1:
+                            target = target.reshape(sample_num, frame_num, -1)
+                        else:
+                            target = target.reshape(sample_num, frame_num)
+
+
+
+                prediction_decode_list.extend(prediction_decode.cpu().detach().numpy())
+                true_label_decode_list.extend(true_label_decode.cpu().detach().numpy())
+                true_label_onehot_list.extend(true_label.cpu().detach().numpy())
+                if task_mode == 'binary_cls' or task_mode == 'multi_cls':
+                    prediction_list.extend(prediction_softmax.cpu().detach().numpy())
+                if task_mode == 'multi_label':
+                    multilabel_prob = nn.Sigmoid()(output)
+                    target_list.extend(target.cpu().detach().numpy())
+                    prediction_list.extend(multilabel_prob.cpu().detach().numpy())
+
+                elif task_mode.startswith('multi_task'):
+                    multi_label_probs.append(output.cpu().detach().numpy())
+                    target_list.extend(target.cpu().detach().numpy())
+                if args.frame_inference_all:
+                    print(len(prediction_list), prediction_list[0].shape, len(patient_id_list), len(visit_hash_list), patient_id_list[0], visit_hash_list[0], len(true_label_decode_list), len(true_label_onehot_list))
+
+        batch_size = images.shape[0]
+        metric_logger.update(loss=loss.item())
+
+        if task_mode == 'binary_cls' or task_mode == 'multi_cls':
+            acc1,_ = accuracy(output, target, topk=(1,2))
+            metric_logger.meters['acc1'].update(acc1.item(), n=batch_size)
+        elif task_mode == 'multi_label':
+            multi_label_probs.append(multilabel_prob.cpu().detach().numpy())
+
+
+    if task_mode == 'regression':
+        # Convert to numpy arrays for metric calculation
+        prediction_list = np.array(prediction_list)
+        true_label_list = np.array(true_label_list)
+
+        # Calculate regression metrics
+        pearson_corr = pearsonr(prediction_list, true_label_list)[0]
+        R2 = pearson_corr ** 2
+        r2 = r2_score(true_label_list, prediction_list)
+        explained_variance = explained_variance_score(true_label_list, prediction_list)
+        mse = mean_squared_error(true_label_list, prediction_list)
+        mae = mean_absolute_error(true_label_list, prediction_list)
+
+        regression_metrics['pearsonr'].append(pearson_corr)
+        regression_metrics['r2'].append(r2)
+        regression_metrics['explained_variance'].append(explained_variance)
+        regression_metrics['mse'].append(mse)
+        regression_metrics['mae'].append(mae)
+        regression_metrics['R2'] = R2
+        regression_metrics['loss'] = metric_logger.loss.avg
+
+        # Log and print regression metrics
+        print('Regression Metrics - Pearsonr: {:.4f} R²: {:.4f} ExplainedVariance: {:.4f} MSE: {:.4f} MAE: {:.4f}, R2: {:.4f}, Loss: {:.4f}'.format(
+            pearson_corr, r2, explained_variance, mse, mae, R2, metric_logger.loss.avg
+        ))
+
+        results_path = os.path.join(task, 'regression_metrics_{}.csv'.format(mode))
+        with open(results_path, mode='a', newline='', encoding='utf8') as file:
+            writer = csv.writer(file)
+            if file.tell() == 0:
+                writer.writerow(['Pearsonr', 'R²', 'ExplainedVariance', 'MSE', 'MAE', 'R2', 'Loss'])
+            # writer.writerow([pearson_corr, r2, explained_variance, mse, mae])
+            writer.writerow([f'{pearson_corr:.4f}', f'{r2:.4f}', f'{explained_variance:.4f}', f'{mse:.4f}', f'{mae:.4f}', f'{R2:.4f}', f'{metric_logger.loss.avg:.4f}'])
+        print('Regression metrics saved to:', results_path)
+        print('Regression metrics:', regression_metrics)
+
+        return dict([key, np.mean(val)] for key, val in regression_metrics.items())
+
+    if args.frame_inference_all:
+        print('prediction_list:', len(prediction_list), prediction_list[0].shape, len(patient_id_list), len(visit_hash_list), patient_id_list[0], visit_hash_list[0], len(true_label_decode_list), len(true_label_onehot_list))
+        if hasattr(args, 'return_embeddings') and args.return_embeddings:
+            print('embeddings_list:', len(embeddings_list), embeddings_list[0].shape)
+
+        with open(os.path.join(task, 'frame_inference_results.pkl'), 'wb') as f:
+            pickle.dump([patient_id_list, visit_hash_list, prediction_list, true_label_decode_list, true_label_onehot_list, embeddings_list, targets_list], f)
+        print('Saved frame_inference_results.pkl, exiting...')
+        exit()
+
+    if task_mode == 'multi_label' or task_mode.startswith('multi_task'):
+
+        multi_label_probs = np.concatenate(multi_label_probs, axis=0)
+        target_list = np.array(target_list)
+
+        results_dict = measure_func(target_list, multi_label_probs, threshold=threshold, multi_task_type=args.task_mode)
+
+        metric_logger.synchronize_between_processes()
+        # set acc1 to be the same as macro_metrics['accuracy']
+        metric_logger.meters['acc1'].update(results_dict['macro']['accuracy'], n=1)
+
+        # Assuming 'results_dict' is the dictionary containing your metrics
+        macro_metrics = results_dict['macro']
+
+        print('Sklearn Metrics - Acc: {:.4f} AUC-roc: {:.4f}, AP: {:4f}, AUC-pr: {:.4f} F1-score: {:.4f}, Max F1: {:.4f}, Balanced Acc: {:.4f}, Kappa: {:.4f}, MCC: {:.4f}'.format(
+            macro_metrics['accuracy'], macro_metrics['roc_auc'], macro_metrics['AP'], macro_metrics['auprc'], macro_metrics['f1'], macro_metrics['max_f1'], macro_metrics['balanced_acc'], macro_metrics['kappa'], macro_metrics['mcc']
+        ))
+
+        # Define path for macro average results
+        results_path = os.path.join(task, 'macro_metrics_{}.csv'.format(mode))
+
+        # Save macro average metrics to CSV
+        with open(results_path, mode='a', newline='', encoding='utf8') as file:
+            writer = csv.writer(file)
+            # Check if file is empty to write headers
+            if file.tell() == 0:
+                writer.writerow(['Accuracy', 'ROC AUC', 'Average Precision', 'AUPRC', 'F1 Score', 'Balanced Acc', 'MCC', 'G-Mean', 'Precision', 'Recall', 'Sensitivity', 'Specificity', 'Micro AP', 'Kappa', 'Max F1', 'loss'])
+            writer.writerow([
+                macro_metrics['accuracy'], macro_metrics['roc_auc'], macro_metrics['AP'], macro_metrics['auprc'], macro_metrics['f1'], macro_metrics['balanced_acc'], macro_metrics['mcc'], macro_metrics['G'], macro_metrics['precision'], macro_metrics['recall'], macro_metrics['sensitivity'], macro_metrics['specificity'], macro_metrics['micro_AP'], macro_metrics['kappa'], macro_metrics['max_f1'], metric_logger.loss
+            ])
+
+        classwise_metrics = results_dict['classwise']
+        num_classes = len(classwise_metrics['accuracy'])  # Assuming all metrics cover the same number of classes
+
+        if task_mode.startswith('multi_task'):
+            if args.multi_task_idx is not None:
+                disease_list = {i: disease_list[args.multi_task_idx[i]] for i in range(num_classes)}
+            else:
+                disease_list = {i: disease_list[i+1] for i in range(num_classes)}
+        assert len(disease_list) == num_classes
+
+
+        # Define the headers (metrics) you want to include in each file
+        headers = ['Accuracy', 'ROC AUC', 'Average Precision', 'AUPRC', 'F1 Score', 'Balanced Acc', 'MCC', 'G-Mean', 'precision', 'recall', 'specificity', 'sensitivity', 'Max F1', 'Kappa']
+
+        # Iterate through each class and create a file with all metrics for that class
+        for class_index in disease_list.keys():
+            extra_idx = 1 if task_mode.startswith('multi_task') else 0
+            # Construct the filename for the current class
+            class_metrics_filename = os.path.join(task, f'class_{class_index + extra_idx}_{disease_list[class_index]}_metrics_{mode}.csv')
+
+            # Open the file for writing
+            with open(class_metrics_filename, mode='a', newline='', encoding='utf8') as file:
+                writer = csv.writer(file)
+
+                # Write the headers
+                writer.writerow(headers)
+
+                # Collect and write the values for each metric for the current class
+                row_values = [
+                    classwise_metrics['accuracy'][class_index],
+                    classwise_metrics['roc_auc'][class_index],
+                    classwise_metrics['AP'][class_index],
+                    classwise_metrics['auprc'][class_index],
+                    classwise_metrics['f1'][class_index],
+                    classwise_metrics['balanced_acc'][class_index],
+                    classwise_metrics['mcc'][class_index],
+                    classwise_metrics['G'][class_index],
+                    classwise_metrics['precision'][class_index],
+                    classwise_metrics['recall'][class_index],
+                    classwise_metrics['specificity'][class_index],
+                    classwise_metrics['sensitivity'][class_index],
+                    classwise_metrics['max_f1'][class_index],
+                    classwise_metrics['kappa'][class_index]
+                ]
+                writer.writerow(row_values)
+        if mode.startswith('test'):
+            for i in disease_list.keys():
+
+                extra_idx = 1 if task_mode.startswith('multi_task') else 0
+                binarized_labels = (multi_label_probs[:, i] > threshold).astype(int)
+                cm1 = ConfusionMatrix(actual_vector=target_list[:, i].astype(int), predict_vector=binarized_labels)
+                if not args.not_save_figs:
+                    cm1.plot(cmap = plt.cm.Blues, number_label=True, normalized=True, plot_lib="matplotlib")
+
+                    plt.savefig(task + f'confusion_matrix_{mode}_{i+extra_idx}_{disease_list[i]}_epoch_{epoch}.jpg', dpi=600, bbox_inches ='tight')
+                    plt.clf()
+        eval_stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
+        eval_stats.update(macro_metrics)
+        
+        if return_bal_acc:
+            return eval_stats, macro_metrics['roc_auc'], (macro_metrics['auprc'], macro_metrics['balanced_acc'])
+        else:
+            return eval_stats, macro_metrics['roc_auc'], macro_metrics['auprc']
+
+
+    # gather the stats from all processes
+    true_label_decode_list = np.array(true_label_decode_list)
+    prediction_decode_list = np.array(prediction_decode_list)
+    confusion_matrix = multilabel_confusion_matrix(true_label_decode_list, prediction_decode_list, labels=[i for i in range(num_class)])
+    acc = accuracy_score(true_label_decode_list, prediction_decode_list)
+    _, sensitivity, specificity, precision, G, F1, mcc, balanced_acc = misc_measures(confusion_matrix)
+
+    print(true_label_onehot_list[:20])
+    print(prediction_list[:20])
+    try:
+        auc_roc = roc_auc_score(true_label_onehot_list, prediction_list, multi_class='ovr', average='macro')
+    except Exception as e:
+        print(f"[Warning] ROC AUC 計算失敗: {e}")
+        auc_roc = safe_macro_roc_auc(true_label_onehot_list, prediction_list, multi_class='ovr', average='macro')
+    auc_pr = average_precision_score(true_label_onehot_list, prediction_list, average='macro')
+    metric_logger.synchronize_between_processes()
+
+    print('Sklearn Metrics - Acc: {:.4f} Balanced-Acc: {:.4f} AUC-roc: {:.4f} AUC-pr: {:.4f} F1-score: {:.4f} MCC: {:.4f}'.format(acc, balanced_acc, auc_roc, auc_pr, F1, mcc))
+    macro_metrics = {
+        'accuracy': acc,
+        'balanced_acc': balanced_acc,
+        'sensitivity': sensitivity,
+        'specificity': specificity,
+        'precision': precision,
+        'recall': sensitivity,  # recall is the same as sensitivity in binary classification
+        'auc_roc': auc_roc,
+        'auprc': auc_pr,
+        'f1': F1,
+        'mcc': mcc,
+        'G': G,
+        'kappa': cohen_kappa_score(true_label_decode_list, prediction_decode_list),
+    }
+    
+    ### fairness calculation
+    # Convert to numpy arrays
+    true_onehot = np.array(true_label_onehot_list)
+    true_labels = np.array(true_label_decode_list)
+    pred_labels = np.array(prediction_decode_list)
+    pred_softmax = np.array(prediction_list)
+    file_names = np.array(file_names)
+    
+    # Separate protected and privileged groups
+    protect_mask = np.isin(file_names, protect_image_names) if protect_image_names is not None else np.zeros(len(file_names), dtype=bool)
+    prevalent_mask = np.isin(file_names, prevalent_image_names) if prevalent_image_names is not None else np.ones(len(file_names), dtype=bool)
+    
+    protect_labels = true_labels[protect_mask]
+    prevalent_labels = true_labels[prevalent_mask]
+    protect_preds = pred_labels[protect_mask]
+    prevalent_preds = pred_labels[prevalent_mask]
+    protect_probs = pred_softmax[protect_mask]
+    prevalent_probs = pred_softmax[prevalent_mask]
+    protect_gt_onehot = true_onehot[protect_mask]
+    prevalent_gt_onehot = true_onehot[prevalent_mask]
+    
+    print(f"Protected group size: {len(protect_labels)}")
+    print(f"Privileged group size: {len(prevalent_labels)}")
+    
+    # Basic fairness metrics using existing function
+    metric_dict = {}
+    conf = confusion_matrix(true_labels, pred_labels)
+    
+    if len(protect_labels) > 0 and len(prevalent_labels) > 0:
+        # Original fairness score
+        fairness_score = fariness_score(protect_labels, prevalent_labels, protect_preds, prevalent_preds, protect_probs, prevalent_probs, protect_gt_onehot, prevalent_gt_onehot)
+        
+        print("=== ENHANCED FAIRNESS ANALYSIS ===")
+        print(f"Original fairness metrics: {fairness_score}")
+        
+        # Enhanced analysis with uncertainty quantification and confidence intervals
+        from util.uncertainty_fairness_enhanced import UncertaintyQuantifier
+        from util.fairness import FairnessAnalyzerWithCI, bootstrap_ci
+        
+        # ===== UNCERTAINTY QUANTIFICATION =====
+        print("\n--- Uncertainty Quantification ---")
+        
+        # Initialize uncertainty quantifier
+        uncertainty_quantifier = UncertaintyQuantifier(
+            num_classes=num_class, 
+            alpha=getattr(args, 'conformal_alpha', 0.1)
+        )
+        
+        # Split data for calibration and evaluation
+        n_samples = len(true_labels)
+        cal_split_ratio = getattr(args, 'cal_split_ratio', 0.5)
+        n_cal = int(n_samples * cal_split_ratio)
+        
+        # Random split
+        np.random.seed(getattr(args, 'seed', 42))
+        indices = np.random.permutation(n_samples)
+        cal_indices = indices[:n_cal]
+        eval_indices = indices[n_cal:]
+        
+        cal_probs = pred_softmax[cal_indices]
+        cal_labels = true_labels[cal_indices]
+        eval_probs = pred_softmax[eval_indices]
+        eval_labels = true_labels[eval_indices]
+        
+        # 1. Reject Option Classification
+        roc_strategy = getattr(args, 'roc_strategy', 'accuracy_coverage')
+        roc_results = uncertainty_quantifier.reject_option_classification(
+            eval_probs, eval_labels, strategy=roc_strategy
+        )
+        # 2. Conformal Prediction
+        #conformal_results = uncertainty_quantifier.conformal_prediction(
+        #    cal_probs, cal_labels, eval_probs, eval_labels
+        #)
+        # 3. Calibration Assessment
+        calibration_results = uncertainty_quantifier.calibration_assessment(
+            eval_probs, eval_labels, n_bins=getattr(args, 'calibration_bins', 10)
+        )
+        
+        # Add uncertainty metrics to output
+        metric_dict.update({
+            'uncertainty_roc_threshold': roc_results['optimal_threshold'],
+            'uncertainty_roc_coverage': roc_results['coverage'],
+            'uncertainty_roc_accuracy': roc_results['accuracy'],
+            'uncertainty_roc_rejection_rate': roc_results['rejection_rate'],
+            #'uncertainty_conformal_coverage': conformal_results['empirical_coverage'],
+            #'uncertainty_conformal_set_size': conformal_results['average_set_size'],
+            #'uncertainty_conformal_singleton_rate': conformal_results['singleton_rate'],
+            'uncertainty_calibration_ece': calibration_results['ECE'],
+            'uncertainty_mean_confidence': calibration_results['mean_confidence'],
+            'uncertainty_mean_ece': calibration_results['mean_classwise_ECE'],
+        })
+        metric_dict.update({f'uncertainty_class{i}_ece': val for i, val in enumerate(calibration_results['classwise_ECE'])})
+        
+        # ===== FAIRNESS ANALYSIS WITH CONFIDENCE INTERVALS =====
+        print("\n--- Fairness Analysis with Confidence Intervals ---")
+        
+        fairness_analyzer = FairnessAnalyzerWithCI(
+            n_bootstrap=getattr(args, 'n_bootstrap', 1000),
+            confidence_level=getattr(args, 'confidence_level', 0.95)
+        )
+        
+        # Compute fairness metrics with confidence intervals
+        fairness_ci_results = fairness_analyzer.compute_fairness_metrics_with_ci(
+            protect_labels, prevalent_labels, protect_preds, prevalent_preds, protect_probs, prevalent_probs, protect_gt_onehot, prevalent_gt_onehot
+        )
+        
+        # Add fairness CI metrics to output
+        for metric, diff_data in fairness_ci_results['fairness_differences'].items():
+            metric_dict[f'fairness_{metric}_absolute'] = diff_data['absolute']
+            metric_dict[f'fairness_{metric}_original'] = diff_data['original']
+            metric_dict[f'fairness_{metric}_ci_lower'] = diff_data['ci_lower']
+            metric_dict[f'fairness_{metric}_ci_upper'] = diff_data['ci_upper']
+            metric_dict[f'fairness_{metric}_significant'] = 1.0 if diff_data['is_significant'] else 0.0
+        
+        # ===== SAVE DETAILED RESULTS =====
+        if getattr(args, 'export_detailed_results', True):
+            # Create analysis directory
+            analysis_dir = os.path.join(args.output_dir, args.task, 'fairness_uncertainty_analysis')
+            os.makedirs(analysis_dir, exist_ok=True)
+            
+            # Save uncertainty results
+            uncertainty_results = {
+                'reject_option_classification': roc_results,
+                'calibration_assessment': calibration_results,
+                'parameters': {
+                    'roc_strategy': roc_strategy,
+                    'calibration_bins': getattr(args, 'calibration_bins', 10)
+                }
+            }
+            
+            with open(os.path.join(analysis_dir, 'uncertainty_results.json'), 'w') as f:
+                json.dump(uncertainty_results, f, indent=2, default=str)
+            
+            # Save fairness results with CI
+            with open(os.path.join(analysis_dir, 'fairness_ci_results.json'), 'w') as f:
+                json.dump(fairness_ci_results, f, indent=2, default=str)
+            
+            # Generate fairness plots with CI
+            if getattr(args, 'save_fairness_plots', True):
+                plot_path = os.path.join(analysis_dir, 'fairness_metrics_with_ci.png')
+                fairness_analyzer.plot_fairness_with_ci(fairness_ci_results, plot_path)
+                print(f"Fairness plots saved to: {plot_path}")
+            
+            print(f"Detailed results saved to: {analysis_dir}")
+        
+    else:
+        print("Warning: Insufficient data for fairness analysis")
+        fairness_score = (0,) * 16  # Default empty fairness metrics (now includes AUROC)
+    
+    # Add original fairness metrics to output
+    fairness_metric_names = [
+        'protected_PPV', 'privileged_PPV', 'protected_FPR', 'privileged_FPR',
+        'protected_TPR', 'privileged_TPR', 'protected_NPV', 'privileged_NPV', 
+        'protected_TE', 'privileged_TE', 'protected_FNR', 'privileged_FNR',
+        'protected_ACC', 'privileged_ACC', 'protected_AUROC', 'privileged_AUROC'
+    ]
+    
+    for i, metric_name in enumerate(fairness_metric_names):
+        if i < len(fairness_score):
+            metric_dict[f'fairness_{metric_name}'] = fairness_score[i]
+    
+    print("=== FAIRNESS ANALYSIS COMPLETE ===")
+    
+    results_path = task + 'metrics_{}.csv'.format(mode)
+    with open(results_path, mode='a', newline='', encoding='utf8') as cfa:
+        wf = csv.writer(cfa)
+        data2=[[acc, balanced_acc, sensitivity, specificity, precision, auc_roc, auc_pr, F1, mcc, metric_logger.loss]]
+        for i in data2:
+            wf.writerow(i)
+
+    eval_stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
+    eval_stats.update(macro_metrics)
+    eval_stats.update(metric_dict)
+    if return_bal_acc:
+        return eval_stats, auc_roc, (auc_pr, balanced_acc)
+    else:
+        return eval_stats, auc_roc, auc_pr
