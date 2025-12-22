@@ -24,7 +24,7 @@ SUBSETNUM=${6:-500} # 0, 500, 1000
 SUBSETSEED=${7:-42}
 ADDCMD=${8:-""}
 
-# Example usage: sbatch scripts/finetune_UFcohort_IRB2024v5.sh AMD_all_split flash_attn_vit_large_patch16 2 AUC binary_cls 500 --testval
+# Example usage: sbatch scripts/finetune_UFcohort_IRB2024v5_bootstrap.sh MH_all_split flash_attn_vit_large_patch16 2 AUC binary_cls 500
 data_type="IRB2024_v5"
 dataset_type="3D_st_flash_attn_nodrop"
 ROOT=/blue/ruogu.fang
