@@ -1360,7 +1360,7 @@ def main(args):
             #select best
             if max_score <= e_score:
                 max_score = e_score
-                if args.output_dir:
+                if args.output_dir and args.save_model:
                     misc.save_model(
                         args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
                         loss_scaler=loss_scaler, epoch=epoch, model_add_dir=model_add_dir)
