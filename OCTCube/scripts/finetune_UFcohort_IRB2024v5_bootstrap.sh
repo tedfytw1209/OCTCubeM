@@ -73,4 +73,5 @@ python main_finetune_downstream_UFcohort.py --nb_classes $Num_CLASS \
     --bootstrap_runs \
     --return_bal_acc \
     --not_print_logits \
+    --save_model \
     ${ADDCMD}
