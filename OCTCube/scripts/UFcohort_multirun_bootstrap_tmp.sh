@@ -26,7 +26,7 @@ SUBSETNUM=${6:-500} # 0, 500, 1000
 ADDCMD=${7:-""}
 
 #sbatch scripts/UFcohort_multirun_bootstrap_tmp.sh AMD_all_split flash_attn_vit_large_patch16 2 AUC binary_cls 500
-SUBSET_SEEDS=(7 8 9 10)
+SUBSET_SEEDS=(1)
 for i in "${!SUBSET_SEEDS[@]}"
 do
     # Create a job name based on the variables
