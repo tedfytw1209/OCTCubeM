@@ -905,9 +905,9 @@ def main(args):
                 if max_flag is True:
                     print(f"Max AUC: {max_auc}, Max ACC: {max_accuracy}, Max AUCPR: {max_auc_pr}, Max Bal Acc: {max_bal_acc}, at epoch {epoch}")
                     print(f"Max AUC: {max_auc}, Max ACC: {max_accuracy}, Max AUCPR: {max_auc_pr}, Max Bal Acc: {max_bal_acc}, at epoch {epoch}", file=open(os.path.join(args.output_dir, f"auc_fold_{fold}.txt"), mode="a"))
-                    if args.output_dir and args.save_model: #2026-01-09: tmp not to save every time
+                    if args.output_dir and args.save_model:
                         misc.save_model(
-                            args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=None, epoch=epoch)
+                            args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler, epoch=epoch, mode='best')
                 if max_flag or epoch == (args.epochs - 1):
                     test_mode = f'test_fold_{fold}'
                     init_csv_writer(os.path.join(args.log_dir,args.task), mode=test_mode)
@@ -1360,10 +1360,10 @@ def main(args):
             #select best
             if max_score <= e_score:
                 max_score = e_score
-                if args.output_dir and args.save_model: #2026-01-09: tmp not to save every time
+                if args.output_dir and args.save_model:
                     misc.save_model(
                         args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
-                        loss_scaler=None, epoch=epoch, model_add_dir=model_add_dir)
+                        loss_scaler=loss_scaler, epoch=epoch, model_add_dir=model_add_dir, mode='best')
                 best_val_stats = val_stats
                 #test_stats,auc_roc, auc_pr = evaluate(data_loader_test, model, device, args.task,epoch, mode='test', num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
 

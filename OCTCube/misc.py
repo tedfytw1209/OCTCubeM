@@ -298,13 +298,13 @@ def save_model(args, epoch, model, model_without_ddp, optimizer, loss_scaler, mo
             checkpoint_paths = [output_dir / ('checkpoint-%s.pth' % epoch_name)]
         else:
             raise ValueError('Invalid mode')
-
+        #2026-01-10: not save all
         for checkpoint_path in checkpoint_paths:
             to_save = {
                 'model': model_without_ddp.state_dict(),
-                'optimizer': optimizer.state_dict(),
+                #'optimizer': optimizer.state_dict(),
                 'epoch': epoch,
-                'scaler': loss_scaler.state_dict(),
+                #'scaler': loss_scaler.state_dict(),
                 'args': args,
             }
 
