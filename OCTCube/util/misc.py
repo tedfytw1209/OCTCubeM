@@ -308,19 +308,24 @@ def get_grad_norm_(parameters, norm_type: float = 2.0) -> torch.Tensor:
     return total_norm
 
 
-def save_model(args, epoch, model, model_without_ddp, optimizer, loss_scaler, model_add_dir=""):
+def save_model(args, epoch, model, model_without_ddp, optimizer, loss_scaler, model_add_dir="", mode='best'):
     #output_dir = Path(args.output_dir + datetime.datetime.now().strftime("_%Y%m%d_%H%M%S"))
-    #os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(os.path.join(args.output_dir, model_add_dir), exist_ok=True)
     #epoch_name = str(epoch)
     if loss_scaler is not None:
         # checkpoint_paths = [args.task+f'checkpoint-{epoch}.pth']
-        checkpoint_paths = ["{}/checkpoint-{:05d}.pth".format(os.path.join(args.output_dir, model_add_dir), epoch)]
+        if mode == 'best':
+            checkpoint_paths = [os.path.join(args.output_dir, model_add_dir, 'checkpoint-best.pth')]
+        elif mode == 'epoch':
+            checkpoint_paths = [os.path.join(args.output_dir, model_add_dir, 'checkpoint-%s.pth' % epoch_name)]
+        else:
+            raise ValueError('Invalid mode')
         for checkpoint_path in checkpoint_paths:
             to_save = {
                 'model': model_without_ddp.state_dict(),
-                'optimizer': optimizer.state_dict(),
+                #'optimizer': optimizer.state_dict(),
                 'epoch': epoch,
-                'scaler': loss_scaler.state_dict(),
+                #'scaler': loss_scaler.state_dict(),
                 'args': args,
             }
 
