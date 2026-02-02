@@ -2,12 +2,13 @@
 # prefix=""
 # OUTPUT_DIR=$HOME/test_output/outputs_ft_st/finetune_duke14_3D_fewshot_10folds_effective_fold/
 
-prefix=YOUR_PREFIX
-LOG_DIR=$HOME/log_pt/
-OUTPUT_DIR=./outputs_ft_st/finetune_duke14_3D_fewshot_10folds_effective_fold/
+ROOT=/blue/ruogu.fang/tienyuchang
+LOG_DIR=$ROOT/log_pt/
+TASK=finetune_duke14_3D_fewshot_10folds_effective_fold
+OUTPUT_DIR=./outputs_ft_st/$TASK/
 num_frames=24
 CUDA_VISIBLE_DEVICES=0 python main_finetune_downstream_duke14.py --nb_classes 3 \
-    --data_path $HOME/$prefix/OCTCubeM/assets/ext_oph_datasets/DUKE_14_Srin/duke14_processed/ \
+    --data_path $ROOT/OCTCubeM/assets/ext_oph_datasets/DUKE_14_Srin/duke14_processed/ \
     --dataset_mode frame \
     --iterate_mode patient \
     --name_split_char _ \
@@ -15,7 +16,7 @@ CUDA_VISIBLE_DEVICES=0 python main_finetune_downstream_duke14.py --nb_classes 3 
     --cls_unique \
     --max_frames ${num_frames} \
     --num_frames ${num_frames} \
-    --task ${OUTPUT_DIR} \
+    --task ${TASK} \
     --task_mode multi_cls \
     --val_metric AUPRC \
     --few_shot \
@@ -36,7 +37,7 @@ CUDA_VISIBLE_DEVICES=0 python main_finetune_downstream_duke14.py --nb_classes 3 
     --layer_decay 0.65 \
     --weight_decay 0.05 \
     --drop_path 0.2 \
-    --finetune $HOME/$prefix/OCTCubeM/ckpt/OCTCube.pth \
+    --finetune $ROOT/OCTCubeM/ckpt/OCTCube.pth \
     --return_bal_acc \
     --smaller_temporal_crop crop \
     --not_dataset_random_reshuffle_patient \

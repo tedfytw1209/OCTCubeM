@@ -30,6 +30,7 @@ import torch
 import torch.backends.cudnn as cudnn
 from sklearn.model_selection import KFold
 from torch.utils.tensorboard import SummaryWriter
+import wandb
 
 
 import util.misc as misc
@@ -250,6 +251,19 @@ def get_args_parser():
     parser.add_argument('--dist_on_itp', action='store_true')
     parser.add_argument('--dist_url', default='env://',
                         help='url used to set up distributed training')
+    parser.add_argument('--rank', default=-1, type=int)
+
+    # wandb parameters
+    parser.add_argument('--use_wandb', default=True, action='store_true',
+                        help='Use Weights & Biases for logging')
+    parser.add_argument('--no_wandb', dest='use_wandb', action='store_false',
+                        help='Disable Weights & Biases logging')
+    parser.add_argument('--wandb_project', default='OCTCubeM', type=str,
+                        help='Weights & Biases project name')
+    parser.add_argument('--wandb_entity', default=None, type=str,
+                        help='Weights & Biases entity (username or team name)')
+    parser.add_argument('--wandb_run_name', default=None, type=str,
+                        help='Weights & Biases run name')
 
     return parser
 
@@ -314,6 +328,24 @@ def main(args):
 
     num_tasks = misc.get_world_size()
     global_rank = misc.get_rank()
+
+    # Initialize wandb
+    if args.use_wandb and global_rank == 0:
+        project_name = args.wandb_project
+        args.task = args.task[:120]  # Wandb group name max length is 128
+        group_name = args.task.replace('.','').replace('/', '_')
+        wandb_task_name = args.wandb_run_name if args.wandb_run_name else (args.task.replace('.','').replace('/', '_') + datetime.datetime.now().strftime("_%Y%m%d_%H%M%S"))
+
+        wandb.init(
+            project=project_name,
+            entity=args.wandb_entity,
+            name=wandb_task_name,
+            group=group_name,
+            config=vars(args),
+            dir=os.path.join(args.log_dir, wandb_task_name) if args.log_dir else None,
+            reinit=True
+        )
+
     if args.k_fold and args.patient_dataset:
         fold_results = []
         fold_results_test = []
@@ -581,7 +613,7 @@ def main(args):
 
             print("criterion = %s" % str(criterion))
 
-            misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
+            #misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
 
             if args.eval:
                 test_mode = f'test_fold_{fold}'
@@ -727,6 +759,18 @@ def main(args):
                         print('break')
                         break
 
+                    # Log test stats to wandb
+                    if args.use_wandb and global_rank == 0:
+                        wandb_test_log = {f'fold_{fold}/epoch': epoch}
+                        wandb_test_log.update({f'fold_{fold}/test_{k}': v for k, v in test_stats.items()})
+                        wandb_test_log.update({
+                            f'fold_{fold}/test_auc': test_auc_roc,
+                            f'fold_{fold}/test_auc_pr': test_auc_pr,
+                        })
+                        if args.return_bal_acc and test_bal_acc is not None:
+                            wandb_test_log[f'fold_{fold}/test_bal_acc'] = test_bal_acc
+                        wandb.log(wandb_test_log, step=epoch + fold * args.epochs)
+
                     max_flag_test = False
                     if args.val_metric == 'AUC':
                         print('Use AUC as the validation metric')
@@ -806,6 +850,23 @@ def main(args):
                     if args.return_bal_acc and val_bal_acc is not None:
                         log_writer.add_scalar('perf/val_bal_acc', val_bal_acc, epoch)
 
+                # Log to wandb
+                if args.use_wandb and global_rank == 0 and train_stats is not None:
+                    wandb_log = {f'fold_{fold}/epoch': epoch}
+                    wandb_log.update({f'fold_{fold}/train_{k}': v for k, v in train_stats.items()})
+                    wandb_log.update({f'fold_{fold}/val_{k}': v for k, v in val_stats.items()})
+                    wandb_log.update({
+                        f'fold_{fold}/val_auc': val_auc_roc,
+                        f'fold_{fold}/val_auc_pr': val_auc_pr,
+                        f'fold_{fold}/max_val_auc': max_auc,
+                        f'fold_{fold}/max_val_acc': max_accuracy,
+                        f'fold_{fold}/max_val_auc_pr': max_auc_pr,
+                    })
+                    if args.return_bal_acc and val_bal_acc is not None:
+                        wandb_log[f'fold_{fold}/val_bal_acc'] = val_bal_acc
+                        wandb_log[f'fold_{fold}/max_val_bal_acc'] = max_bal_acc
+                    wandb.log(wandb_log, step=epoch + fold * args.epochs)
+
                 if train_stats is not None:
                     log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
                                     'epoch': epoch,
@@ -867,6 +928,30 @@ def main(args):
         print(f"Fold results: {fold_results_test}\nMean: {fold_results_mean_test}\nStd: {fold_results_std_test}")
         print(f"Fold results: {fold_results_test}\nMean: {fold_results_mean_test}\nStd: {fold_results_std_test}",
             file=open(os.path.join(args.output_dir, "fold_results_test.txt"), mode="a"))
+
+        # Log final results to wandb
+        if args.use_wandb and global_rank == 0:
+            wandb_summary = {
+                'final/mean_val_auc': fold_results_mean[0],
+                'final/mean_val_acc': fold_results_mean[1],
+                'final/mean_val_auc_pr': fold_results_mean[2],
+                'final/std_val_auc': fold_results_std[0],
+                'final/std_val_acc': fold_results_std[1],
+                'final/std_val_auc_pr': fold_results_std[2],
+                'final/mean_test_auc': fold_results_mean_test[0],
+                'final/mean_test_acc': fold_results_mean_test[1],
+                'final/mean_test_auc_pr': fold_results_mean_test[2],
+                'final/std_test_auc': fold_results_std_test[0],
+                'final/std_test_acc': fold_results_std_test[1],
+                'final/std_test_auc_pr': fold_results_std_test[2],
+            }
+            if args.return_bal_acc:
+                wandb_summary['final/mean_val_bal_acc'] = fold_results_mean[3]
+                wandb_summary['final/std_val_bal_acc'] = fold_results_std[3]
+                wandb_summary['final/mean_test_bal_acc'] = fold_results_mean_test[3]
+                wandb_summary['final/std_test_bal_acc'] = fold_results_std_test[3]
+            wandb.log(wandb_summary)
+            wandb.finish()
 
     else:  # args.distributed:
         assert args.patient_dataset is False
@@ -1012,7 +1097,7 @@ def main(args):
 
         print("criterion = %s" % str(criterion))
 
-        misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
+        #misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
 
         if args.eval:
             test_stats,auc_roc, auc_pr = evaluate(data_loader_test, model, device, args.task, epoch=0, mode='test', num_class=args.nb_classes)
