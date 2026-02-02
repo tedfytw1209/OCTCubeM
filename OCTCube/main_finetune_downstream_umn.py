@@ -595,7 +595,7 @@ def main(args):
 
             print("criterion = %s" % str(criterion))
 
-            misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
+            #misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
 
             if args.eval:
                 test_mode = f'test_fold_{fold}'
@@ -1079,7 +1079,7 @@ def main(args):
 
         print("criterion = %s" % str(criterion))
 
-        misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
+        #misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
 
         if args.eval:
             test_stats,auc_roc, auc_pr = evaluate(data_loader_test, model, device, args.task, epoch=0, mode='test', num_class=args.nb_classes)
