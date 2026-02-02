@@ -23,6 +23,7 @@ OUTPUT_DIR=/orange/ruogu.fang/tienyuchang/OCTCube_results/outputs_ft_st/${TASK}/
 num_frames=24
 python main_finetune_downstream_umn.py --nb_classes 2 \
     --data_path $ROOT/OCTCubeM/assets/ext_oph_datasets/UMN/UMN_dataset/image_classification/ \
+    --rank -1 \
     --dataset_mode frame \
     --iterate_mode patient \
     --name_split_char _ \

@@ -23,6 +23,7 @@ OUTPUT_DIR=/orange/ruogu.fang/tienyuchang/OCTCube_results/outputs_ft_st/${TASK}/
 num_frames=15
 python main_finetune_downstream_oimhs.py --nb_classes 3 \
     --data_path $ROOT/OCTCubeM/assets/ext_oph_datasets/OIMHS_dataset/cls_images/ \
+    --rank -1 \
     --dataset_mode frame \
     --iterate_mode visit \
     --name_split_char _ \
