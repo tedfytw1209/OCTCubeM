@@ -1,11 +1,26 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem-per-cpu=12gb
+#SBATCH --partition=hpg-turin
+#SBATCH --gpus=1
+#SBATCH --time=72:00:00
+#SBATCH --output=%x.%j.out
+#SBATCH --account=ruogu.fang
+#SBATCH --qos=ruogu.fang
+
+date;hostname;pwd
 
 module load conda
 conda activate octcube
 
+
 ROOT=/blue/ruogu.fang
 prefix=tienyuchang
+TASK=finetune_glaucoma_3D_fewshot_10folds_correct_visit
 LOG_DIR=$ROOT/log_pt/
-OUTPUT_DIR=./outputs_ft_st/finetune_glaucoma_3D_fewshot_10folds_correct_visit/
+OUTPUT_DIR=./outputs_ft_st/${TASK}/
 python main_finetune_downstream_glaucoma_correct_visit.py --nb_classes 2 \
     --data_path $ROOT/$prefix/OCTCubeM/assets/ext_oph_datasets/GLAUCOMA/glaucoma_processed/ \
     --rank -1 \
@@ -17,7 +32,7 @@ python main_finetune_downstream_glaucoma_correct_visit.py --nb_classes 2 \
     --num_frames 60 \
     --few_shot \
     --k_folds 10 \
-    --task ${OUTPUT_DIR} \
+    --task ${TASK} \
     --task_mode binary_cls \
     --val_metric AUPRC \
     --input_size 128 \

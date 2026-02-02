@@ -1,17 +1,35 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem-per-cpu=12gb
+#SBATCH --partition=hpg-turin
+#SBATCH --gpus=1
+#SBATCH --time=72:00:00
+#SBATCH --output=%x.%j.out
+#SBATCH --account=ruogu.fang
+#SBATCH --qos=ruogu.fang
+
+date;hostname;pwd
+
+module load conda
+conda activate octcube
+
 # Few shot 10 folds, use k frames
-prefix=YOUR_PREFIX
-LOG_DIR=$HOME/log_pt/
-OUTPUT_DIR=./outputs_ft_st/finetune_oimhs_3D_fewshot_10folds_correct_${num_frames}/
+ROOT=/blue/ruogu.fang/tienyuchang
+LOG_DIR=$ROOT/log_pt/
+TASK=finetune_oimhs_3D_fewshot_10folds_correct_${num_frames}
+OUTPUT_DIR=/orange/ruogu.fang/tienyuchang/OCTCube_results/outputs_ft_st/${TASK}/
 num_frames=15
-CUDA_VISIBLE_DEVICES=0 python main_finetune_downstream_oimhs.py --nb_classes 3 \
-    --data_path $$HOME/$prefix/OCTCubeM/assets/ext_oph_datasets/OIMHS_dataset/cls_images/ \
+python main_finetune_downstream_oimhs.py --nb_classes 3 \
+    --data_path $ROOT/OCTCubeM/assets/ext_oph_datasets/OIMHS_dataset/cls_images/ \
     --dataset_mode frame \
     --iterate_mode visit \
     --name_split_char _ \
     --patient_idx_loc 3 \
     --max_frames ${num_frames} \
     --num_frames ${num_frames} \
-    --task ${OUTPUT_DIR} \
+    --task ${TASK} \
     --task_mode multi_cls \
     --val_metric AUPRC \
     --few_shot \
@@ -32,7 +50,7 @@ CUDA_VISIBLE_DEVICES=0 python main_finetune_downstream_oimhs.py --nb_classes 3 \
     --layer_decay 0.65 \
     --weight_decay 0.05 \
     --drop_path 0.2 \
-    --finetune $HOME/$prefix/OCTCubeM/ckpt/OCTCube.pth \
+    --finetune $ROOT/OCTCubeM/ckpt/OCTCube.pth \
     --return_bal_acc \
     --smaller_temporal_crop crop \
 
