@@ -1,6 +1,21 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem-per-cpu=12gb
+#SBATCH --partition=hpg-turin
+#SBATCH --gpus=1
+#SBATCH --time=72:00:00
+#SBATCH --output=%x.%j.out
+#SBATCH --account=ruogu.fang
+#SBATCH --qos=ruogu.fang
+
+date;hostname;pwd
+
+module load conda
+conda activate octcube
+
 # Few shot 10 folds, use k frames
-# prefix=""
-# OUTPUT_DIR=$HOME/test_output/outputs_ft_st/finetune_duke14_3D_fewshot_10folds_effective_fold/
 
 ROOT=/blue/ruogu.fang/tienyuchang
 LOG_DIR=$ROOT/log_pt/
