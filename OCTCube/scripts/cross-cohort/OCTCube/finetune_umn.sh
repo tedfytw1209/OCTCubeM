@@ -15,10 +15,10 @@ date;hostname;pwd
 module load conda
 conda activate octcube
 
-# Few shot 10 folds, use k frames
+# 10 folds, use k frames
 ROOT=/blue/ruogu.fang/tienyuchang
 LOG_DIR=$ROOT/log_pt/
-TASK=finetune_umn_3D_fewshot_10folds_correct
+TASK=finetune_umn_3D_10folds_correct
 OUTPUT_DIR=/orange/ruogu.fang/tienyuchang/OCTCube_results/outputs_ft_st/${TASK}/
 num_frames=24
 python main_finetune_downstream_umn.py --nb_classes 2 \
@@ -34,7 +34,6 @@ python main_finetune_downstream_umn.py --nb_classes 2 \
     --task ${TASK} \
     --task_mode binary_cls \
     --val_metric AUPRC \
-    --few_shot \
     --k_folds 10 \
     --input_size 256 \
     --log_dir ${LOG_DIR} \

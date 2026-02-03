@@ -775,7 +775,7 @@ class PatientDataset3D(Dataset):
                     print(f"Error occurred during transformation: {e}")
                     print(f"Frames tensor shape before transform: {frames_tensor.shape}")
                     print('frames name:', data_dict['frames'])
-
+            print("num_frames:", num_frames) #debugging print
             if self.return_patient_id:
                 return frames_tensor, patient_id, data_dict['class_idx']
             else:

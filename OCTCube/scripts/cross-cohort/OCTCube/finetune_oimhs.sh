@@ -15,10 +15,10 @@ date;hostname;pwd
 module load conda
 conda activate octcube
 
-# Few shot 10 folds, use k frames
+# 10 folds, use k frames
 ROOT=/blue/ruogu.fang/tienyuchang
 LOG_DIR=$ROOT/log_pt/
-TASK=finetune_oimhs_3D_fewshot_10folds_correct_${num_frames}
+TASK=finetune_oimhs_3D_10folds_correct_${num_frames}
 OUTPUT_DIR=/orange/ruogu.fang/tienyuchang/OCTCube_results/outputs_ft_st/${TASK}/
 num_frames=15
 python main_finetune_downstream_oimhs.py --nb_classes 3 \
@@ -33,7 +33,6 @@ python main_finetune_downstream_oimhs.py --nb_classes 3 \
     --task ${TASK} \
     --task_mode multi_cls \
     --val_metric AUPRC \
-    --few_shot \
     --k_folds 10 \
     --input_size 256 \
     --log_dir ${LOG_DIR} \

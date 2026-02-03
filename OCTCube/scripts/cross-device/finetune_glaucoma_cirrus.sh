@@ -18,7 +18,7 @@ conda activate octcube
 
 ROOT=/blue/ruogu.fang
 prefix=tienyuchang
-TASK=finetune_glaucoma_3D_fewshot_10folds_correct_visit
+TASK=finetune_glaucoma_3D_10folds_correct_visit
 LOG_DIR=$ROOT/log_pt/
 OUTPUT_DIR=./outputs_ft_st/${TASK}/
 python main_finetune_downstream_glaucoma_correct_visit.py --nb_classes 2 \
@@ -30,7 +30,6 @@ python main_finetune_downstream_glaucoma_correct_visit.py --nb_classes 2 \
     --patient_idx_loc 1 \
     --max_frames 60 \
     --num_frames 60 \
-    --few_shot \
     --k_folds 10 \
     --task ${TASK} \
     --task_mode binary_cls \
