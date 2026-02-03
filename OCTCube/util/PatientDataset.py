@@ -381,7 +381,17 @@ class PatientDataset3D(Dataset):
                     cls_path = os.path.join(self.root_dir, cls_dir)
                     if os.path.isdir(cls_path):
                         for img_name in os.listdir(cls_path):
-                            patient_id, frame_index = img_name.split(self.name_split_char)[patient_idx_loc], img_name.split(self.name_split_char)[patient_idx_loc + 1]
+                            # Skip non-image files and files that don't match expected naming pattern
+                            if not img_name.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff')):
+                                continue
+
+                            # Split filename and check if it has enough parts
+                            parts = img_name.split(self.name_split_char)
+                            if len(parts) <= patient_idx_loc + 1:
+                                print(f"Warning: Skipping file '{img_name}' - does not match expected naming pattern (needs at least {patient_idx_loc + 2} parts when split by '{self.name_split_char}')")
+                                continue
+
+                            patient_id, frame_index = parts[patient_idx_loc], parts[patient_idx_loc + 1]
                             if self.cls_unique:
                                 unique_patient_id = f"{cls_dir}_{patient_id}"
                             else:
@@ -410,9 +420,20 @@ class PatientDataset3D(Dataset):
                     cls_path = os.path.join(self.root_dir, cls_dir)
                     if os.path.isdir(cls_path):
                         for img_name in os.listdir(cls_path):
-                            patient_id = img_name.split(self.name_split_char)[patient_idx_loc]
+                            # Skip non-image files and files that don't match expected naming pattern
+                            if not img_name.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff')):
+                                continue
+
+                            # Split filename and check if it has enough parts
+                            parts = img_name.split(self.name_split_char)
+                            required_idx = max(patient_idx_loc, self.visit_idx_loc if self.visit_idx_loc is not None else 0)
+                            if len(parts) <= required_idx:
+                                print(f"Warning: Skipping file '{img_name}' - does not match expected naming pattern (needs at least {required_idx + 1} parts when split by '{self.name_split_char}')")
+                                continue
+
+                            patient_id = parts[patient_idx_loc]
                             if self.visit_idx_loc is not None:
-                                visit_id = img_name.split(self.name_split_char)[self.visit_idx_loc]
+                                visit_id = parts[self.visit_idx_loc]
                             else:
                                 raise ValueError('visit_list must be provided [temporarily]')
 
@@ -1277,7 +1298,17 @@ class PatientDatasetCenter2D(Dataset):
                     cls_path = os.path.join(self.root_dir, cls_dir)
                     if os.path.isdir(cls_path):
                         for img_name in os.listdir(cls_path):
-                            patient_id, frame_index = img_name.split(self.name_split_char)[patient_idx_loc], img_name.split(self.name_split_char)[patient_idx_loc + 1]
+                            # Skip non-image files and files that don't match expected naming pattern
+                            if not img_name.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff')):
+                                continue
+
+                            # Split filename and check if it has enough parts
+                            parts = img_name.split(self.name_split_char)
+                            if len(parts) <= patient_idx_loc + 1:
+                                print(f"Warning: Skipping file '{img_name}' - does not match expected naming pattern (needs at least {patient_idx_loc + 2} parts when split by '{self.name_split_char}')")
+                                continue
+
+                            patient_id, frame_index = parts[patient_idx_loc], parts[patient_idx_loc + 1]
                             if self.cls_unique:
                                 unique_patient_id = f"{cls_dir}_{patient_id}"
                             else:
@@ -1307,9 +1338,20 @@ class PatientDatasetCenter2D(Dataset):
                     cls_path = os.path.join(self.root_dir, cls_dir)
                     if os.path.isdir(cls_path):
                         for img_name in os.listdir(cls_path):
-                            patient_id = img_name.split(self.name_split_char)[patient_idx_loc]
+                            # Skip non-image files and files that don't match expected naming pattern
+                            if not img_name.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff')):
+                                continue
+
+                            # Split filename and check if it has enough parts
+                            parts = img_name.split(self.name_split_char)
+                            required_idx = max(patient_idx_loc, self.visit_idx_loc if self.visit_idx_loc is not None else 0)
+                            if len(parts) <= required_idx:
+                                print(f"Warning: Skipping file '{img_name}' - does not match expected naming pattern (needs at least {required_idx + 1} parts when split by '{self.name_split_char}')")
+                                continue
+
+                            patient_id = parts[patient_idx_loc]
                             if self.visit_idx_loc is not None:
-                                visit_id = img_name.split(self.name_split_char)[self.visit_idx_loc]
+                                visit_id = parts[self.visit_idx_loc]
                             else:
                                 raise ValueError('visit_list must be provided [temporarily]')
 
