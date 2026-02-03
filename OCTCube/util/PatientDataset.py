@@ -670,12 +670,15 @@ class PatientDataset3D(Dataset):
 
 
     def __len__(self):
-        if self.dataset_mode == 'frame':
-            return len(self.visits_dict)
-        elif self.dataset_mode == 'volume':
-            return len(self.visits_dict)
-        elif self.dataset_mode == 'dicom_aireadi':
-            return len(self.visits_dict)
+        if self.iterate_mode == 'patient':
+            return len(self.patients)
+        else:  # iterate_mode == 'visit'
+            if self.dataset_mode == 'frame':
+                return len(self.visits_dict)
+            elif self.dataset_mode == 'volume':
+                return len(self.visits_dict)
+            elif self.dataset_mode == 'dicom_aireadi':
+                return len(self.visits_dict)
 
 
     def __getitem__(self, idx):
@@ -1572,12 +1575,15 @@ class PatientDatasetCenter2D(Dataset):
 
 
     def __len__(self):
-        if self.dataset_mode == 'frame':
-            return len(self.visits_dict)
-        elif self.dataset_mode == 'volume':
-            return len(self.visits_dict)
-        elif self.dataset_mode == 'dicom_aireadi':
-            return len(self.visits_dict)
+        if self.iterate_mode == 'patient':
+            return len(self.patients)
+        else:  # iterate_mode == 'visit'
+            if self.dataset_mode == 'frame':
+                return len(self.visits_dict)
+            elif self.dataset_mode == 'volume':
+                return len(self.visits_dict)
+            elif self.dataset_mode == 'dicom_aireadi':
+                return len(self.visits_dict)
 
 
     def __getitem__(self, idx):
