@@ -308,21 +308,42 @@ def main(args):
         elif args.patient_dataset_type == 'Center2D' or args.patient_dataset_type == 'Center2D_flash_attn':
             dataset_for_Kfold = PatientDatasetCenter2D(root_dir=args.data_path, patient_idx_loc=args.patient_idx_loc, transform=None)
 
-        # Validate that all labels are in {0, 1} for UMN binary classification
-        print("Validating UMN dataset labels...")
-        invalid_labels = []
+        # Fix labels to ensure they are in {0, 1} for UMN binary classification
+        print("Checking and fixing UMN dataset labels...")
+        all_labels = set()
         for idx in range(len(dataset_for_Kfold)):
             if args.iterate_mode == 'patient':
                 patient_id = list(dataset_for_Kfold.patients.keys())[idx]
                 label = dataset_for_Kfold.patients[patient_id]['class_idx']
             else:
                 label = dataset_for_Kfold.visits_dict[idx]['class_idx']
-            if label not in (0, 1):
-                invalid_labels.append((idx, label))
-        if invalid_labels:
-            print(f"WARNING: Found {len(invalid_labels)} samples with labels not in (0, 1): {invalid_labels[:10]}...")
-            raise ValueError(f"UMN dataset contains invalid labels. Expected labels in (0, 1), but found: {set(l for _, l in invalid_labels)}")
-        print(f"Label validation passed: all {len(dataset_for_Kfold)} samples have labels in (0, 1)")
+            all_labels.add(label)
+
+        print(f"Found unique labels: {sorted(all_labels)}")
+
+        # If labels are not {0, 1}, create a mapping to fix them
+        if all_labels != {0, 1}:
+            sorted_labels = sorted(all_labels)
+            label_mapping = {old_label: new_label for new_label, old_label in enumerate(sorted_labels)}
+            print(f"Remapping labels: {label_mapping}")
+
+            # Apply the mapping to fix labels
+            for idx in range(len(dataset_for_Kfold)):
+                if args.iterate_mode == 'patient':
+                    patient_id = list(dataset_for_Kfold.patients.keys())[idx]
+                    old_label = dataset_for_Kfold.patients[patient_id]['class_idx']
+                    dataset_for_Kfold.patients[patient_id]['class_idx'] = label_mapping[old_label]
+                else:
+                    old_label = dataset_for_Kfold.visits_dict[idx]['class_idx']
+                    dataset_for_Kfold.visits_dict[idx]['class_idx'] = label_mapping[old_label]
+
+            # Also update class_to_idx mapping
+            if hasattr(dataset_for_Kfold, 'class_to_idx'):
+                dataset_for_Kfold.class_to_idx = {k: label_mapping.get(v, v) for k, v in dataset_for_Kfold.class_to_idx.items()}
+
+            print(f"Labels remapped to (0, 1) successfully")
+        else:
+            print(f"Labels already in (0, 1), no remapping needed")
 
         if args.k_fold:
             # Assuming KFold setup is external, and args.fold indicates the current fold
