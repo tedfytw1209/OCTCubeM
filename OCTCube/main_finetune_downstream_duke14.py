@@ -18,6 +18,7 @@ import json
 import argparse
 import datetime
 import numpy as np
+import pandas as pd
 
 from pathlib import Path
 
@@ -65,6 +66,78 @@ import models_vit_st_joint_flash_attn
 import models_vit_st_flash_attn_nodrop
 import model_slivit_baseline
 
+
+def save_fold_split_to_csv(dataset, train_indices, val_indices, fold, output_dir, dataset_name, iterate_mode='patient'):
+    """Save the CV fold split information to a CSV file with frame-level details."""
+    import re
+    rows = []
+
+    def extract_image_fmt(frame_path):
+        """Extract format string from frame path by replacing numeric part with %s placeholder."""
+        frame_dir = os.path.dirname(frame_path)
+        frame_name = os.path.basename(frame_path)
+        # Match patterns like oct_001.png, frame001.png, 001.png, etc.
+        # Replace the numeric part with %s
+        match = re.search(r'(\d+)(\.\w+)$', frame_name)
+        if match:
+            num_str = match.group(1)
+            ext = match.group(2)
+            prefix = frame_name[:match.start(1)]
+            # Use %0Nd format where N is the number of digits
+            fmt_spec = f'%0{len(num_str)}d'
+            fmt_name = f'{prefix}{fmt_spec}{ext}'
+            return os.path.join(frame_dir, fmt_name)
+        return frame_path
+
+    def add_rows_for_indices(indices, split_name):
+        for idx in indices:
+            if iterate_mode == 'patient':
+                patient_id = list(dataset.patients.keys())[idx]
+                data_dict = dataset.patients[patient_id]
+            else:
+                data_dict = dataset.visits_dict[idx]
+                patient_id = str(idx)
+
+            label = data_dict['class_idx']
+
+            # Add a row for each frame
+            if 'frames' in data_dict and len(data_dict['frames']) > 0:
+                frames = data_dict['frames']
+                # Get image_fmt from first frame
+                first_frame = frames[0] if isinstance(frames[0], str) else frames[0][0]
+                image_fmt = extract_image_fmt(first_frame)
+
+                for slice_num, frame_path in enumerate(frames):
+                    if isinstance(frame_path, list):
+                        frame_path = frame_path[0]
+                    frame_name = os.path.basename(frame_path)
+                    rows.append({
+                        'patient_id': patient_id,
+                        'image_name': frame_name,
+                        'image_fmt': image_fmt,
+                        'slice_num': slice_num,
+                        'split': split_name,
+                        'label': label
+                    })
+            else:
+                # No frames, add patient-level entry
+                rows.append({
+                    'patient_id': patient_id,
+                    'image_name': patient_id,
+                    'image_fmt': '',
+                    'slice_num': 0,
+                    'split': split_name,
+                    'label': label
+                })
+
+    add_rows_for_indices(train_indices, 'train')
+    add_rows_for_indices(val_indices, 'val')
+
+    df = pd.DataFrame(rows)
+    csv_path = os.path.join(output_dir, f'{dataset_name}_fold_{fold}_split.csv')
+    df.to_csv(csv_path, index=False)
+    print(f"Saved fold {fold} split to {csv_path} ({len(df)} rows)")
+    return csv_path
 
 
 home_directory = os.getenv('HOME') + '/'
@@ -362,6 +435,9 @@ def main(args):
                 train_pat_id, val_pat_id = [patient_mapping_visit_indices[idx] for idx in idx_train_pat_id], [patient_mapping_visit_indices[idx] for idx in idx_val_pat_id]
                 train_indices = dataset_for_Kfold.get_visit_idx(train_pat_id)
                 val_indices = dataset_for_Kfold.get_visit_idx(val_pat_id)
+
+            # Save fold split to CSV
+            save_fold_split_to_csv(dataset_for_Kfold, train_indices, val_indices, fold, args.output_dir, dataset_name, args.iterate_mode)
 
             if args.patient_dataset_type == '3D' or args.patient_dataset_type == '3D_st' or args.patient_dataset_type.startswith('3D') or args.patient_dataset_type == 'convnext_slivit':
                 if args.few_shot:
@@ -1100,7 +1176,7 @@ def main(args):
         #misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
 
         if args.eval:
-            test_stats,auc_roc, auc_pr = evaluate(data_loader_test, model, device, args.task, epoch=0, mode='test', num_class=args.nb_classes)
+            test_stats,auc_roc, auc_pr = evaluate(data_loader_test, model, device, args.task, epoch=0, mode='test', num_class=args.nb_classes, args=args)
             exit(0)
 
         print(f"Start training for {args.epochs} epochs")
@@ -1118,7 +1194,7 @@ def main(args):
                 args=args
             )
 
-            val_stats,val_auc_roc, auc_pr = evaluate(data_loader_val, model, device, args.task,epoch, mode='val', num_class=args.nb_classes)
+            val_stats,val_auc_roc, auc_pr = evaluate(data_loader_val, model, device, args.task,epoch, mode='val', num_class=args.nb_classes, args=args)
             if max_auc <= val_auc_roc:
                 max_auc = val_auc_roc
 
@@ -1131,7 +1207,7 @@ def main(args):
 
 
             if epoch==(args.epochs-1):
-                test_stats,auc_roc, auc_pr = evaluate(data_loader_test, model, device, args.task,epoch, mode='test', num_class=args.nb_classes)
+                test_stats,auc_roc, auc_pr = evaluate(data_loader_test, model, device, args.task,epoch, mode='test', num_class=args.nb_classes, args=args)
 
 
             if log_writer is not None:

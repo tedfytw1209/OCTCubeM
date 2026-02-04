@@ -690,7 +690,7 @@ def evaluate(data_loader, model, device, task, epoch, mode, num_class, criterion
             pearson_corr, r2, explained_variance, mse, mae, R2, metric_logger.loss.avg
         ))
 
-        results_path = os.path.join(task, 'regression_metrics_{}.csv'.format(mode))
+        results_path = os.path.join(args.output_dir, 'regression_metrics_{}.csv'.format(mode))
         with open(results_path, mode='a', newline='', encoding='utf8') as file:
             writer = csv.writer(file)
             if file.tell() == 0:
@@ -731,7 +731,7 @@ def evaluate(data_loader, model, device, task, epoch, mode, num_class, criterion
         ))
 
         # Define path for macro average results
-        results_path = os.path.join(task, 'macro_metrics_{}.csv'.format(mode))
+        results_path = os.path.join(args.output_dir, 'macro_metrics_{}.csv'.format(mode))
 
         # Save macro average metrics to CSV
         with open(results_path, mode='a', newline='', encoding='utf8') as file:
@@ -761,7 +761,7 @@ def evaluate(data_loader, model, device, task, epoch, mode, num_class, criterion
         for class_index in disease_list.keys():
             extra_idx = 1 if task_mode.startswith('multi_task') else 0
             # Construct the filename for the current class
-            class_metrics_filename = os.path.join(task, f'class_{class_index + extra_idx}_{disease_list[class_index]}_metrics_{mode}.csv')
+            class_metrics_filename = os.path.join(args.output_dir, f'class_{class_index + extra_idx}_{disease_list[class_index]}_metrics_{mode}.csv')
 
             # Open the file for writing
             with open(class_metrics_filename, mode='a', newline='', encoding='utf8') as file:
@@ -797,7 +797,7 @@ def evaluate(data_loader, model, device, task, epoch, mode, num_class, criterion
                 if not args.not_save_figs:
                     cm1.plot(cmap = plt.cm.Blues, number_label=True, normalized=True, plot_lib="matplotlib")
 
-                    plt.savefig(task + f'confusion_matrix_{mode}_{i+extra_idx}_{disease_list[i]}_epoch_{epoch}.jpg', dpi=600, bbox_inches ='tight')
+                    plt.savefig(os.path.join(args.output_dir, f'confusion_matrix_{mode}_{i+extra_idx}_{disease_list[i]}_epoch_{epoch}.jpg'), dpi=600, bbox_inches ='tight')
                     plt.clf()
         eval_stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
         eval_stats.update(macro_metrics)
@@ -840,7 +840,7 @@ def evaluate(data_loader, model, device, task, epoch, mode, num_class, criterion
         'G': G,
         'kappa': cohen_kappa_score(true_label_decode_list, prediction_decode_list),
     }
-    results_path = task + 'metrics_{}.csv'.format(mode)
+    results_path = os.path.join(args.output_dir, 'macro_metrics_{}.csv'.format(mode))
     with open(results_path, mode='a', newline='', encoding='utf8') as cfa:
         wf = csv.writer(cfa)
         data2=[[acc, balanced_acc, sensitivity, specificity, precision, auc_roc, auc_pr, F1, mcc, metric_logger.loss]]
@@ -851,7 +851,7 @@ def evaluate(data_loader, model, device, task, epoch, mode, num_class, criterion
     if mode.startswith('test') and not args.not_save_figs:
         cm = ConfusionMatrix(actual_vector=true_label_decode_list, predict_vector=prediction_decode_list)
         cm.plot(cmap = plt.cm.Blues, number_label=True, normalized=True, plot_lib="matplotlib")
-        plt.savefig(task + f'confusion_matrix_{mode}_epoch_{epoch}.jpg', dpi=600, bbox_inches='tight')
+        plt.savefig(os.path.join(args.output_dir, f'confusion_matrix_{mode}_epoch_{epoch}.jpg'), dpi=600, bbox_inches='tight')
 
     eval_stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
     eval_stats.update(macro_metrics)
