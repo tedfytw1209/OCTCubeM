@@ -133,6 +133,9 @@ def save_fold_split_to_csv(dataset, train_indices, val_indices, fold, output_dir
     add_rows_for_indices(train_indices, 'train')
     add_rows_for_indices(val_indices, 'val')
 
+    # Ensure output directory exists
+    os.makedirs(output_dir, exist_ok=True)
+
     df = pd.DataFrame(rows)
     csv_path = os.path.join(output_dir, f'{dataset_name}_fold_{fold}_split.csv')
     df.to_csv(csv_path, index=False)

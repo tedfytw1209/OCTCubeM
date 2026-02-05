@@ -135,6 +135,9 @@ def save_fold_split_to_csv(dataset, train_indices, val_indices, fold, output_dir
     add_rows_for_indices(train_indices, 'train')
     add_rows_for_indices(val_indices, 'val')
 
+    # Ensure output directory exists
+    os.makedirs(output_dir, exist_ok=True)
+
     df = pd.DataFrame(rows)
     csv_path = os.path.join(output_dir, f'{dataset_name}_fold_{fold}_split.csv')
     df.to_csv(csv_path, index=False)
@@ -456,7 +459,7 @@ def main(args):
                     dataset_train = TransformableSubset(dataset_for_Kfold, train_indices, transform=train_transform)
                     dataset_val = TransformableSubset(dataset_for_Kfold, val_indices, transform=val_transform)
 
-            dataset_test = dataset_val
+            dataset_test = dataset_val # Using validation set as test set for now
             sampler_train = torch.utils.data.DistributedSampler(
                 dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
             )
