@@ -27,12 +27,12 @@ ADDCMD=${7:-""}
 
 #sbatch scripts/UFcohort_multirun_bootstrap_tmp.sh AMD_all_split flash_attn_vit_large_patch16 2 AUC binary_cls 500
 #sbatch scripts/UFcohort_multirun_bootstrap_tmp.sh DME_all_split flash_attn_vit_large_patch16 5 AUC multi_cls 300
-SUBSET_SEEDS=(3 4 5 6 7 8 9 10)
+SUBSET_SEEDS=(5 6 7 8 9 10)
 for i in "${!SUBSET_SEEDS[@]}"
 do
     # Create a job name based on the variables
     SUBSETSEED="${SUBSET_SEEDS[$i]}"
-    echo "bash $SCRIPT $DATASET $MODEL $NUM_CLASS $Eval_score $TASK_MODE $SUBSETNUM $SUBSETSEED $ADDCMD"
+    echo "sbatch $SCRIPT $DATASET $MODEL $NUM_CLASS $Eval_score $TASK_MODE $SUBSETNUM $SUBSETSEED $ADDCMD"
     # Submit the job to Slurm
-    bash $SCRIPT $DATASET $MODEL $NUM_CLASS $Eval_score $TASK_MODE $SUBSETNUM $SUBSETSEED $ADDCMD
+    sbatch $SCRIPT $DATASET $MODEL $NUM_CLASS $Eval_score $TASK_MODE $SUBSETNUM $SUBSETSEED $ADDCMD
 done
