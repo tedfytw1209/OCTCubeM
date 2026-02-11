@@ -718,6 +718,10 @@ def main(args):
             max_bal_acc = 0.0
             max_bal_acc_test = 0.0
 
+            # add F1 score tracker
+            max_f1 = 0.0
+            max_f1_test = 0.0
+
             if args.task_mode == 'binary_cls':
                 init_csv_writer(args.task, mode=val_mode)
 
@@ -820,9 +824,11 @@ def main(args):
                                 max_epoch = epoch
                                 max_flag = True
 
+                val_f1 = val_stats.get('f1', 0.0)
                 if max_flag is True:
-                    print(f"Max AUC: {max_auc}, Max ACC: {max_accuracy}, Max AUCPR: {max_auc_pr}, Max Bal Acc: {max_bal_acc}, at epoch {epoch}")
-                    print(f"Max AUC: {max_auc}, Max ACC: {max_accuracy}, Max AUCPR: {max_auc_pr}, Max Bal Acc: {max_bal_acc}, at epoch {epoch}", file=open(os.path.join(args.output_dir, f"auc_fold_{fold}.txt"), mode="a"))
+                    max_f1 = val_f1
+                    print(f"Max AUC: {max_auc}, Max ACC: {max_accuracy}, Max AUCPR: {max_auc_pr}, Max Bal Acc: {max_bal_acc}, Max F1: {max_f1}, at epoch {epoch}")
+                    print(f"Max AUC: {max_auc}, Max ACC: {max_accuracy}, Max AUCPR: {max_auc_pr}, Max Bal Acc: {max_bal_acc}, Max F1: {max_f1}, at epoch {epoch}", file=open(os.path.join(args.output_dir, f"auc_fold_{fold}.txt"), mode="a"))
                     if args.output_dir and args.save_model:
                         misc.save_model(
                             args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler, epoch=epoch)
@@ -917,8 +923,9 @@ def main(args):
                                 max_epoch = epoch
                                 max_flag = True
                     if max_flag_test is True:
-                        print(f"Max AUC: {max_auc_test}, Max ACC: {max_accuracy_test}, Max AUCPR: {max_auc_pr_test}, Max Bal Acc: {max_bal_acc_test}, at epoch {epoch}")
-                        print(f"Max AUC: {max_auc_test}, Max ACC: {max_accuracy_test}, Max AUCPR: {max_auc_pr_test}, Max Bal Acc: {max_bal_acc_test}, at epoch {epoch}", file=open(os.path.join(args.output_dir, f"auc_test_fold_{fold}.txt"), mode="a"))
+                        max_f1_test = test_stats.get('f1', max_f1_test)
+                        print(f"Max AUC: {max_auc_test}, Max ACC: {max_accuracy_test}, Max AUCPR: {max_auc_pr_test}, Max Bal Acc: {max_bal_acc_test}, Max F1: {max_f1_test}, at epoch {epoch}")
+                        print(f"Max AUC: {max_auc_test}, Max ACC: {max_accuracy_test}, Max AUCPR: {max_auc_pr_test}, Max Bal Acc: {max_bal_acc_test}, Max F1: {max_f1_test}, at epoch {epoch}", file=open(os.path.join(args.output_dir, f"auc_test_fold_{fold}.txt"), mode="a"))
 
 
                 if log_writer is not None:
@@ -940,6 +947,7 @@ def main(args):
                         f'fold_{fold}/max_val_auc': max_auc,
                         f'fold_{fold}/max_val_acc': max_accuracy,
                         f'fold_{fold}/max_val_auc_pr': max_auc_pr,
+                        f'fold_{fold}/max_val_f1': max_f1,
                     })
                     if args.return_bal_acc and val_bal_acc is not None:
                         wandb_log[f'fold_{fold}/val_bal_acc'] = val_bal_acc
@@ -954,7 +962,8 @@ def main(args):
                                     'max_val_auc': max_auc,
                                     'max_val_auc_pr': max_auc_pr,
                                     'max_val_epoch': max_epoch,
-                                    'max_val_bal_acc': max_bal_acc}
+                                    'max_val_bal_acc': max_bal_acc,
+                                    'max_val_f1': max_f1}
 
                 if args.output_dir and misc.is_main_process():
                     if log_writer is not None:
@@ -971,11 +980,11 @@ def main(args):
             print('Training time {}'.format(total_time_str))
             print('Training time {}'.format(total_time_str), file=open(os.path.join(args.output_dir, f"time_fold_{fold}.txt"), mode="a"))
             if args.return_bal_acc:
-                fold_results.append((max_auc, max_accuracy, max_auc_pr, max_bal_acc))
-                fold_results_test.append((max_auc_test, max_accuracy_test, max_auc_pr_test, max_bal_acc_test))
+                fold_results.append((max_auc, max_accuracy, max_auc_pr, max_bal_acc, max_f1))
+                fold_results_test.append((max_auc_test, max_accuracy_test, max_auc_pr_test, max_bal_acc_test, max_f1_test))
             else:
-                fold_results.append((max_auc, max_accuracy, max_auc_pr))
-                fold_results_test.append((max_auc_test, max_accuracy_test, max_auc_pr_test))
+                fold_results.append((max_auc, max_accuracy, max_auc_pr, max_f1))
+                fold_results_test.append((max_auc_test, max_accuracy_test, max_auc_pr_test, max_f1_test))
 
         # Calculate average AUC and accuracy and std
         fold_results = np.array(fold_results)
@@ -1016,6 +1025,15 @@ def main(args):
                 wandb_summary['final/std_val_bal_acc'] = fold_results_std[3]
                 wandb_summary['final/mean_test_bal_acc'] = fold_results_mean_test[3]
                 wandb_summary['final/std_test_bal_acc'] = fold_results_std_test[3]
+                wandb_summary['final/mean_val_f1'] = fold_results_mean[4]
+                wandb_summary['final/std_val_f1'] = fold_results_std[4]
+                wandb_summary['final/mean_test_f1'] = fold_results_mean_test[4]
+                wandb_summary['final/std_test_f1'] = fold_results_std_test[4]
+            else:
+                wandb_summary['final/mean_val_f1'] = fold_results_mean[3]
+                wandb_summary['final/std_val_f1'] = fold_results_std[3]
+                wandb_summary['final/mean_test_f1'] = fold_results_mean_test[3]
+                wandb_summary['final/std_test_f1'] = fold_results_std_test[3]
             wandb.log(wandb_summary)
             wandb.finish()
 
