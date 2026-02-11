@@ -16,10 +16,11 @@ module load conda
 conda activate octcube
 
 # 10 folds, use k frames
+ADDCMD=${1:-""}
 
 ROOT=/blue/ruogu.fang/tienyuchang
 LOG_DIR=$ROOT/log_pt/
-TASK=finetune_duke14_fewshot_3D_10folds_effective_fold
+TASK=finetune_duke14_${ADDCMD}_3D_10folds_effective_fold
 OUTPUT_DIR=./outputs_ft_st/$TASK/
 num_frames=24
 CUDA_VISIBLE_DEVICES=0 python main_finetune_downstream_duke14.py --nb_classes 3 \
@@ -35,7 +36,7 @@ CUDA_VISIBLE_DEVICES=0 python main_finetune_downstream_duke14.py --nb_classes 3 
     --task_mode multi_cls \
     --val_metric AUPRC \
     --k_folds 10 \
-    --few_shot \
+    $ADDCMD \
     --input_size 256 \
     --log_dir ${LOG_DIR} \
     --output_dir ${OUTPUT_DIR} \

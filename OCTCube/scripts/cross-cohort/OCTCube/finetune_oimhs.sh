@@ -16,10 +16,12 @@ module load conda
 conda activate octcube
 
 # 10 folds, use k frames
+ADDCMD=${1:-""}
+
 ROOT=/blue/ruogu.fang/tienyuchang
 LOG_DIR=$ROOT/log_pt/
 num_frames=15
-TASK=finetune_oimhs_fewshot_3D_10folds_correct_${num_frames}
+TASK=finetune_oimhs_${ADDCMD}_3D_10folds_correct_${num_frames}
 OUTPUT_DIR=/orange/ruogu.fang/tienyuchang/OCTCube_results/outputs_ft_st/${TASK}/
 python main_finetune_downstream_oimhs.py --nb_classes 3 \
     --data_path $ROOT/OCTCubeM/assets/ext_oph_datasets/OIMHS_dataset/cls_images/ \
@@ -34,7 +36,7 @@ python main_finetune_downstream_oimhs.py --nb_classes 3 \
     --task_mode multi_cls \
     --val_metric AUPRC \
     --k_folds 10 \
-    --few_shot \
+    $ADDCMD \
     --input_size 256 \
     --log_dir ${LOG_DIR} \
     --output_dir ${OUTPUT_DIR} \
