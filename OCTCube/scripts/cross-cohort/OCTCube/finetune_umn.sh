@@ -57,4 +57,5 @@ python main_finetune_downstream_umn.py --nb_classes 2 \
     --finetune $ROOT/OCTCubeM/ckpt/OCTCube.pth \
     --return_bal_acc \
     --smaller_temporal_crop crop \
+    --not_print_logits
 

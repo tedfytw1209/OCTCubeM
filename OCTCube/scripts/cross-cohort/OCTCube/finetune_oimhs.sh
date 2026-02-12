@@ -56,4 +56,5 @@ python main_finetune_downstream_oimhs.py --nb_classes 3 \
     --finetune $ROOT/OCTCubeM/ckpt/OCTCube.pth \
     --return_bal_acc \
     --smaller_temporal_crop crop \
+    --not_print_logits
 

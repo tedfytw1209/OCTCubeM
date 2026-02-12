@@ -55,3 +55,4 @@ python main_finetune_downstream_glaucoma_correct_visit.py --nb_classes 2 \
     --num_workers 10 \
     --finetune $ROOT/$prefix/OCTCubeM/ckpt/OCTCube.pth \
     --return_bal_acc \
+    --not_print_logits

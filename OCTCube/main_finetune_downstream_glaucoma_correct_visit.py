@@ -401,7 +401,7 @@ def main(args):
                 rng = np.random.RandomState(args.seed)
                 patient_mapping_visit_indices = rng.permutation(patient_mapping_visit_indices)
                 folds = list(kf.split(patient_mapping_visit_indices))
-                print(patient_mapping_visit_indices)
+                #print(patient_mapping_visit_indices)
 
     num_tasks = misc.get_world_size()
     global_rank = misc.get_rank()
@@ -758,7 +758,7 @@ def main(args):
 
                 max_flag = False
                 if args.val_metric == 'AUC':
-                    print('Use AUC as the validation metric')
+                    #print('Use AUC as the validation metric')
                     if max_auc <= val_auc_roc:
                         max_auc = val_auc_roc
                         if max_auc < val_auc_roc:
@@ -773,7 +773,7 @@ def main(args):
                             max_epoch = epoch
                             max_flag = True
                 elif args.val_metric == 'AUPRC':
-                    print('Use AUPRC as the validation metric')
+                    #print('Use AUPRC as the validation metric')
                     if max_auc_pr <= val_auc_pr:
 
                         if max_auc_pr < val_auc_pr:
@@ -796,7 +796,7 @@ def main(args):
                             max_bal_acc = val_bal_acc
                             max_flag = True
                     elif args.val_metric == 'BalAcc':
-                        print('Use BalAcc as the validation metric')
+                        #print('Use BalAcc as the validation metric')
                         if max_bal_acc <= val_bal_acc:
                             if max_bal_acc < val_bal_acc:
                                 max_epoch = epoch
@@ -858,7 +858,7 @@ def main(args):
 
                     max_flag_test = False
                     if args.val_metric == 'AUC':
-                        print('Use AUC as the validation metric')
+                        #print('Use AUC as the validation metric')
                         if max_auc_test <= test_auc_roc:
                             max_auc_test = test_auc_roc
                             if max_auc_test < test_auc_roc:
@@ -873,7 +873,7 @@ def main(args):
                                 max_epoch_test = epoch
                                 max_flag_test = True
                     elif args.val_metric == 'AUPRC':
-                        print('Use AUPRC as the validation metric')
+                        #print('Use AUPRC as the validation metric')
                         if max_auc_pr_test <= test_auc_pr:
                             if max_auc_pr_test < test_auc_pr:
                                 max_epoch_test = epoch
@@ -895,7 +895,7 @@ def main(args):
                                 max_bal_acc_test = test_bal_acc
                                 max_flag_test = True
                     elif args.val_metric == 'BalAcc':
-                        print('Use BalAcc as the validation metric')
+                        #print('Use BalAcc as the validation metric')
                         if max_bal_acc <= val_bal_acc:
                             if max_bal_acc < val_bal_acc:
                                 max_epoch = epoch

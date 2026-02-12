@@ -56,4 +56,5 @@ CUDA_VISIBLE_DEVICES=0 python main_finetune_downstream_duke14.py --nb_classes 3 
     --finetune $ROOT/OCTCubeM/ckpt/OCTCube.pth \
     --return_bal_acc \
     --smaller_temporal_crop crop \
+    --not_print_logits \
     --not_dataset_random_reshuffle_patient \

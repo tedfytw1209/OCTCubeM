@@ -737,7 +737,7 @@ class PatientDataset3D(Dataset):
             # Convert frame to tensor (if not already done by transform)
             if self.convert_to_tensor and not isinstance(frames[0], torch.Tensor):
                 frames = [torch.tensor(np.array(frame), dtype=torch.float32) for frame in frames]
-                print(frames[0].shape)
+                #print(frames[0].shape)
                 frames = [frame.permute(2, 0, 1) for frame in frames]
 
             frames_tensor = torch.stack(frames)
