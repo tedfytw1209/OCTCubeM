@@ -1,10 +1,29 @@
-# Few shot 10 folds, use k frames
-prefix=""
-LOG_DIR=$HOME/log_pt/
-OUTPUT_DIR=./outputs_ft/finetune_duke14_3D_fewshot_10folds_effective_fold/
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem-per-cpu=12gb
+#SBATCH --partition=hpg-turin
+#SBATCH --gpus=1
+#SBATCH --time=72:00:00
+#SBATCH --output=%x.%j.out
+#SBATCH --account=ruogu.fang
+#SBATCH --qos=ruogu.fang
+
+date;hostname;pwd
+
+module load conda
+conda activate octcube
+ADDCMD=${1:-""}
+
+ROOT=/blue/ruogu.fang/tienyuchang
+LOG_DIR=$ROOT/log_pt/
+TASK=finetune_duke14_${ADDCMD}_3D_RETFound_10folds_effective_fold
+OUTPUT_DIR=/orange/ruogu.fang/tienyuchang/OCTCube_results/outputs_ft_st/${TASK}/
 num_frames=24
-CUDA_VISIBLE_DEVICES=2 python main_finetune_downstream_duke14.py --nb_classes 3 \
-    --data_path $HOME/$prefix/OCTCubeM/assets/ext_oph_datasets/DUKE_14_Srin/duke14_processed/ \
+python main_finetune_downstream_duke14.py --nb_classes 3 \
+    --data_path $ROOT/OCTCubeM/assets/ext_oph_datasets/DUKE_14_Srin/duke14_processed/ \
+    --rank -1 \
     --dataset_mode frame \
     --iterate_mode patient \
     --name_split_char _ \
@@ -12,11 +31,11 @@ CUDA_VISIBLE_DEVICES=2 python main_finetune_downstream_duke14.py --nb_classes 3 
     --cls_unique \
     --max_frames ${num_frames} \
     --num_frames ${num_frames} \
-    --task ${OUTPUT_DIR} \
+    --task ${TASK} \
     --task_mode multi_cls \
     --val_metric AUPRC \
-    --few_shot \
     --k_folds 10 \
+    $ADDCMD \
     --input_size 224 \
     --log_dir ${LOG_DIR} \
     --output_dir ${OUTPUT_DIR} \
@@ -32,7 +51,7 @@ CUDA_VISIBLE_DEVICES=2 python main_finetune_downstream_duke14.py --nb_classes 3 
     --layer_decay 0.65 \
     --weight_decay 0.05 \
     --drop_path 0.2 \
-    --finetune $HOME/$prefix/OCTCubeM/ckpt/RETFound_oct_weights.pth \
+    --finetune $ROOT/OCTCubeM/ckpt/RETFound_oct_weights.pth \
     --return_bal_acc \
     --smaller_temporal_crop crop \
     --not_dataset_random_reshuffle_patient \
