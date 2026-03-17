@@ -66,7 +66,7 @@ python main_finetune_downstream_UFcohort.py --nb_classes $Num_CLASS \
     --layer_decay 0.65 \
     --weight_decay 0.05 \
     --drop_path 0.2 \
-    --num_workers 0 \
+    --num_workers 8 \
     --finetune $ROOT/$prefix/OCTCubeM/ckpt/OCTCube.pth \
     --new_subset_num $SUBSETNUM \
     --subsetseed $SUBSETSEED \
