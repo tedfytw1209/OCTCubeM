@@ -70,4 +70,5 @@ python main_finetune_downstream_UFcohort.py --nb_classes $Num_CLASS \
     --new_subset_num $SUBSETNUM \
     --return_bal_acc \
     --not_print_logits \
+    --save_model \
     ${ADDCMD}

@@ -317,7 +317,7 @@ def save_model(args, epoch, model, model_without_ddp, optimizer, loss_scaler, mo
         if mode == 'best':
             checkpoint_paths = [os.path.join(args.output_dir, model_add_dir, 'checkpoint-best.pth')]
         elif mode == 'epoch':
-            checkpoint_paths = [os.path.join(args.output_dir, model_add_dir, 'checkpoint-%s.pth' % epoch_name)]
+            checkpoint_paths = [os.path.join(args.output_dir, model_add_dir, 'checkpoint-%s.pth' % epoch)]
         else:
             raise ValueError('Invalid mode')
         for checkpoint_path in checkpoint_paths:
