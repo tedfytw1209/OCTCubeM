@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=16
 #SBATCH --mem-per-cpu=12gb
 #SBATCH --partition=hpg-turin
 #SBATCH --gpus=1
@@ -65,7 +65,7 @@ python main_finetune_downstream_UFcohort.py --nb_classes $Num_CLASS \
     --layer_decay 0.65 \
     --weight_decay 0.05 \
     --drop_path 0.2 \
-    --num_workers 8 \
+    --num_workers 16 \
     --finetune $ROOT/$prefix/OCTCubeM/ckpt/OCTCube.pth \
     --new_subset_num $SUBSETNUM \
     --return_bal_acc \
