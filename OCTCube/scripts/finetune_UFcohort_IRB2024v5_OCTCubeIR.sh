@@ -28,7 +28,7 @@ ADDCMD=${7:-""}
 # (mm_octcube_ir.pt): visual.* -> OCT tower, text.* -> en-face tower.
 #
 # Example usage:
-#   sbatch scripts/finetune_UFcohort_IRB2024v5_OCTCubeIR.sh AMD_all_split flash_attn_vit_large_patch16 2 AUPRC binary_cls 0
+#   sbatch scripts/finetune_UFcohort_IRB2024v5_OCTCubeIR.sh AMD_all_split flash_attn_vit_large_patch16 2 AUC binary_cls 0
 data_type="IRB2024_v5"
 dataset_type='Dual'
 model_tag="OCTCubeIR"
