@@ -452,7 +452,7 @@ def train_one_epoch_dual(model: torch.nn.Module, criterion: torch.nn.Module,
             else:
                 loss = criterion(outputs, targets)
             if not args.not_print_logits:
-                print('outputs:', outputs.detach().cpu().numpy(), 'targets', targets, 'loss:', loss.item(), 'input_shape:', samples.shape)
+                print('outputs:', outputs.detach().cpu().numpy(), 'targets', targets, 'loss:', loss.item(), 'oct_input_shape:', oct_images.shape, 'cfp_input_shape:', cfp_images.shape)
 
         loss_value = loss.item()
 
