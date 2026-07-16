@@ -28,9 +28,12 @@ ADDCMD=${6:-""}
 #
 #bash scripts/UFcohort_multirun_OCTCubeIR.sh scripts/finetune_UFcohort_IRB2024v5_OCTCubeIR.sh flash_attn_vit_large_patch16 2 AUPRC
 #sbatch scripts/UFcohort_multirun_OCTCubeIR.sh scripts/finetune_UFcohort_IRB2024v5_OCTCubeIR.sh flash_attn_vit_large_patch16 2 AUC 500
-DATASETS=(AMD_all_split Cataract_all_split DR_all_split Glaucoma_all_split DR_binary_all_split Glaucoma_binary_all_split DR_filtered_all_split DR_fbinary_all_split Glaucoma_filtered_all_split Glaucoma_fbinary_all_split)  # List of datasets
-CLASSES=(2 2 6 6 2 2 5 2 4 2)  # Number of classes for each dataset
-TASK_MODES=(binary_cls binary_cls multi_cls multi_cls binary_cls binary_cls multi_cls binary_cls multi_cls binary_cls)  # Task mode, can be changed as needed
+DATASETS=(AMD_all_split Cataract_all_split DR_all_split Glaucoma_all_split DR_binary_all_split Glaucoma_binary_all_split)  # List of datasets
+CLASSES=(2 2 6 6 2 2)  # Number of classes for each dataset
+TASK_MODES=(binary_cls binary_cls multi_cls multi_cls binary_cls binary_cls)  # Task mode, can be changed as needed
+#DATASETS=(DR_filtered_all_split DR_fbinary_all_split Glaucoma_filtered_all_split Glaucoma_fbinary_all_split)
+#CLASSES=(5 2 4 2)  # Number of classes for each dataset
+#TASK_MODES=(multi_cls binary_cls multi_cls binary_cls)  # Task mode, can be changed as needed
 for i in "${!DATASETS[@]}"
 do
     # Create a job name based on the variables
