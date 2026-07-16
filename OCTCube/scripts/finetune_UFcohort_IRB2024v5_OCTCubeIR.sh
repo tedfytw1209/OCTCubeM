@@ -15,6 +15,14 @@ date;hostname;pwd
 module load conda
 conda activate octcube
 
+# Force Conda C++ runtime before importing PyTorch/SciPy extensions
+export LD_LIBRARY_PATH="$CONDA_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export LD_PRELOAD="$CONDA_PREFIX/lib/libstdc++.so.6${LD_PRELOAD:+:$LD_PRELOAD}"
+
+echo "CONDA_PREFIX=$CONDA_PREFIX"
+echo "LD_PRELOAD=$LD_PRELOAD"
+echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+
 STUDY=$1 #AMD_all_split 2, Cataract_all_split 2, DR_all_split 6, Glaucoma_all_split 6, DR_binary_all_split 2, Glaucoma_binary_all_split 2
 MODEL=${2:-"flash_attn_vit_large_patch16"}
 Num_CLASS=${3:-"2"}
