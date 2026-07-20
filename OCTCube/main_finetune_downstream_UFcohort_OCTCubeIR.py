@@ -492,6 +492,11 @@ def get_args_parser():
                         help='Create subset with absolute number of samples (old method)')
     parser.add_argument('--new_subset_num', default=0, type=int,
                         help='Create subset with absolute number of samples (new method with separate train/val)')
+    parser.add_argument('--subsetseed', default=42, type=int,
+                        help='RNG seed for stratified subset sampling; vary across bootstrap runs')
+    parser.add_argument('--bootstrap_runs', default=False, action='store_true',
+                        help='Bootstrap sampling for the training subset; groups runs by seed in wandb '
+                             'and writes each seed to an output subdir seed_<subsetseed>/')
 
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,
@@ -510,18 +515,32 @@ def main(args):
     print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
     print("{}".format(args).replace(', ', ',\n'))
 
-    wandb_task_name = args.task.replace('.', '').replace('/', '_') + datetime.datetime.now().strftime("_%Y%m%d_%H%M%S")
+    # Bootstrap runs are grouped by seed in wandb and isolated per seed on disk
+    # (output_dir/seed_<subsetseed>/), following main_finetune_downstream_UFcohort.py.
+    if args.bootstrap_runs:
+        project_name = "OCTCubeM_bootstrap"
+        args.task = args.task[:120]  # wandb group name max length is 128
+        group_name = args.task.replace('.', '').replace('/', '_')
+        wandb_task_name = "seed_" + str(args.subsetseed)
+        model_add_dir = "seed_" + str(args.subsetseed)
+    else:
+        project_name = "OCTCubeM"
+        wandb_task_name = args.task.replace('.', '').replace('/', '_') + datetime.datetime.now().strftime("_%Y%m%d_%H%M%S")
+        group_name = None
+        model_add_dir = ""
+
     wandb.init(
-        project="OCTCubeM",
+        project=project_name,
         name=wandb_task_name,
+        group=group_name,
         config=args,
-        dir=os.path.join(args.log_dir, wandb_task_name),
+        dir=os.path.join(args.log_dir, wandb_task_name, model_add_dir),
     )
 
     # Save args to a json file
     if args.output_dir:
-        os.makedirs(args.output_dir, exist_ok=True)
-        with open(os.path.join(args.output_dir, 'args.json'), 'w') as f:
+        os.makedirs(os.path.join(args.output_dir, model_add_dir), exist_ok=True)
+        with open(os.path.join(args.output_dir, model_add_dir, 'args.json'), 'w') as f:
             json.dump(vars(args), f, indent=2)
 
     device = torch.device(args.device)
@@ -613,14 +632,14 @@ def main(args):
 
             if subset_num < n_classes:
                 print(f'Warning: subset_num ({subset_num}) < number of classes ({n_classes}), using random sampling')
-                rng = np.random.RandomState(args.seed)
+                rng = np.random.RandomState(args.subsetseed)
                 subset_indices = rng.choice(len(dataset), min(subset_num, len(dataset)), replace=False)
             else:
                 if subset_num >= len(dataset):
                     print(f'Warning: subset_num ({subset_num}) >= dataset size ({len(dataset)}), using full dataset')
                     subset_indices = list(range(len(dataset)))
                 else:
-                    sss = StratifiedShuffleSplit(n_splits=1, train_size=subset_num, random_state=args.seed)
+                    sss = StratifiedShuffleSplit(n_splits=1, train_size=subset_num, random_state=args.subsetseed)
                     subset_indices = next(sss.split(range(len(dataset)), targets))[0]
 
             subset_dataset = Subset(dataset, subset_indices)
@@ -650,7 +669,7 @@ def main(args):
                 print(f'{split_name} class ratios: {dict(zip(unique_classes, class_ratios))}')
                 print(f'{split_name} target subset size: {target_size}')
 
-                rng = np.random.RandomState(42)
+                rng = np.random.RandomState(args.subsetseed)
                 selected_indices = []
 
                 for class_idx in unique_classes:
@@ -809,7 +828,7 @@ def main(args):
     # string concatenation, so pass the run's output_dir (with a trailing separator)
     # to co-locate metrics with checkpoint-best.pth / log.txt instead of scattering
     # them under a CWD-relative args.task path.
-    metrics_dir = os.path.join(args.output_dir, '') if args.output_dir else args.task
+    metrics_dir = os.path.join(args.output_dir, model_add_dir, '') if args.output_dir else args.task
 
     # resume training / load a finetuned model for --eval (guarded: misc.load_model
     # raises on an empty --resume, so only call it when a checkpoint is given).
@@ -864,7 +883,7 @@ def main(args):
             if args.output_dir:
                 misc.save_model(
                     args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
-                    loss_scaler=loss_scaler, epoch=epoch, mode='best')
+                    loss_scaler=loss_scaler, epoch=epoch, model_add_dir=model_add_dir, mode='best')
             best_val_stats = val_stats
             test_stats, auc_roc, auc_pr = evaluate_dual(data_loader_test, model, device, metrics_dir, epoch, mode='test', num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode, disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
 
@@ -885,7 +904,7 @@ def main(args):
         if args.output_dir and misc.is_main_process():
             if log_writer is not None:
                 log_writer.flush()
-            with open(os.path.join(args.output_dir, "log.txt"), mode="a") as f:
+            with open(os.path.join(args.output_dir, model_add_dir, "log.txt"), mode="a") as f:
                 f.write(json.dumps(log_stats) + "\n")
             wandb_dict = {"epoch": epoch}
             if train_stats is not None:
