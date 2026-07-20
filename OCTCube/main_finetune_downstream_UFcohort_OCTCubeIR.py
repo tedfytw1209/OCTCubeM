@@ -644,8 +644,12 @@ def main(args):
 
             subset_dataset = Subset(dataset, subset_indices)
             subset_dataset.targets = [dataset.targets[i] for i in subset_indices]
-            subset_dataset.classes = dataset.classes
-            subset_dataset.class_to_idx = dataset.class_to_idx
+            # Dual_Dataset exposes .targets (forwarded from the OCT sub-dataset) but
+            # not necessarily .classes/.class_to_idx; only copy what exists.
+            if hasattr(dataset, 'classes'):
+                subset_dataset.classes = dataset.classes
+            if hasattr(dataset, 'class_to_idx'):
+                subset_dataset.class_to_idx = dataset.class_to_idx
 
             print(f'{split_name} - Final subset size: {len(subset_dataset)}')
             return subset_dataset
@@ -689,10 +693,14 @@ def main(args):
                 print('Selected indices:', selected_indices)
                 subset_dataset = Subset(dataset, selected_indices)
                 subset_dataset.targets = [dataset.targets[i] for i in selected_indices]
+                # Dual_Dataset exposes .targets (forwarded from the OCT sub-dataset) but
+                # not necessarily .annotations/.classes/.class_to_idx; only copy what exists.
                 if hasattr(dataset, 'annotations'):
                     subset_dataset.annotations = dataset.annotations.iloc[selected_indices].reset_index(drop=True)
-                subset_dataset.classes = dataset.classes
-                subset_dataset.class_to_idx = dataset.class_to_idx
+                if hasattr(dataset, 'classes'):
+                    subset_dataset.classes = dataset.classes
+                if hasattr(dataset, 'class_to_idx'):
+                    subset_dataset.class_to_idx = dataset.class_to_idx
 
                 print(f'{split_name} final subset size: {len(subset_dataset)}')
                 return subset_dataset
