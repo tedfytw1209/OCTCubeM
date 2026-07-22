@@ -1,0 +1,59 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem-per-cpu=12gb
+#SBATCH --partition=hpg-turin
+#SBATCH --gpus=1
+#SBATCH --time=72:00:00
+#SBATCH --output=%x.%j.out
+#SBATCH --account=ruogu.fang
+#SBATCH --qos=ruogu.fang
+
+date;hostname;pwd
+
+module load conda
+conda activate octcube
+
+ADDCMD=${1:-""}
+
+ROOT=/blue/ruogu.fang
+prefix=tienyuchang
+TASK=finetune_glaucoma_${ADDCMD}_3D_RETFound_10folds_correct_visit
+LOG_DIR=$ROOT/log_pt/
+OUTPUT_DIR=./outputs_ft_st/${TASK}/
+python main_finetune_downstream_glaucoma_correct_visit.py --nb_classes 2 \
+    --data_path $ROOT/$prefix/OCTCubeM/assets/ext_oph_datasets/GLAUCOMA/glaucoma_processed/ \
+    --rank -1 \
+    --dataset_mode volume \
+    --iterate_mode visit \
+    --name_split_char - \
+    --patient_idx_loc 1 \
+    --max_frames 60 \
+    --num_frames 60 \
+    --k_folds 10 \
+    $ADDCMD \
+    --task ${TASK} \
+    --task_mode binary_cls \
+    --val_metric AUPRC \
+    --input_size 128 \
+    --log_dir ${LOG_DIR} \
+    --output_dir ${OUTPUT_DIR} \
+    --batch_size 4 \
+    --val_batch_size 16 \
+    --warmup_epochs 5 \
+    --world_size 1 \
+    --model flash_attn_vit_large_patch16_3DSliceHead \
+    --patient_dataset_type 3D_flash_attn \
+    --transform_type monai_3D \
+    --color_mode gray \
+    --epochs 100 \
+    --blr 5e-3 \
+    --layer_decay 0.65 \
+    --weight_decay 0.05 \
+    --drop_path 0.2 \
+    --num_workers 10 \
+    --finetune $ROOT/$prefix/OCTCubeM/ckpt/RETFound_oct_weights.pth \
+    --return_bal_acc \
+    --load_non_flash_attn_to_flash_attn \
+    --not_print_logits
