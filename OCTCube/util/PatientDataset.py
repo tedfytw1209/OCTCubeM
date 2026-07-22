@@ -1636,7 +1636,10 @@ class PatientDatasetCenter2D(Dataset):
             patient_id = self.mapping_visit2patient[idx]
 
         if self.dataset_mode == 'frame':
-            num_frames = len(data_dict['slice_num'])
+            # 'slice_num' is only populated when the dataset is built from a csv_path;
+            # folder-scanned datasets (no csv_path) already store exactly the patient/visit's
+            # own frames, so len(frames) is the equivalent frame count.
+            num_frames = len(data_dict['slice_num']) if 'slice_num' in data_dict else len(data_dict['frames'])
             # Determine the middle index
             middle_index = (num_frames // 2) - 1 if num_frames % 2 == 0 else num_frames // 2
 
