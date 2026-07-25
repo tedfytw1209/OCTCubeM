@@ -499,8 +499,6 @@ def main(args):
             print("Color mode:", args.color_mode)
             print("Input batch shape:", debug_samples.shape)
             print("Target shape:", debug_targets.shape)
-            print("Model module:", model.__class__.__module__)
-            print("Patch embed:", model.patch_embed)
             print("=" * 80)
 
             data_loader_val = torch.utils.data.DataLoader(

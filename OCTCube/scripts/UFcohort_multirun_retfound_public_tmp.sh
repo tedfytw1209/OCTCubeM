@@ -25,5 +25,5 @@ echo "LD_PRELOAD=$LD_PRELOAD"
 echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
 
 # cross-device
-#bash scripts/cross-device/RETFound-center/finetune_glaucoma_cirrus.sh $ADDCMD
+bash scripts/cross-device/RETFound-center/finetune_glaucoma_cirrus.sh $ADDCMD
 bash scripts/cross-device/RETFound-all/finetune_glaucoma_cirrus.sh $ADDCMD
