@@ -37,5 +37,5 @@ do
     TASK_MODE="${TASK_MODES[$i]}"
     echo "sbatch $SCRIPT $DATASET $MODEL $NUM_CLASS $Eval_score $TASK_MODE $SUBSETNUM $ADDCMD"
     # Submit the per-dataset bootstrap (10 seeds) to Slurm
-    sbatch $SCRIPT $DATASET $MODEL $NUM_CLASS $Eval_score $TASK_MODE $SUBSETNUM $ADDCMD
+    #sbatch $SCRIPT $DATASET $MODEL $NUM_CLASS $Eval_score $TASK_MODE $SUBSETNUM $ADDCMD
 done
