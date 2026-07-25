@@ -45,8 +45,8 @@ python main_finetune_downstream_glaucoma_correct_visit.py --nb_classes 2 \
     --world_size 1 \
     --model flash_attn_vit_large_patch16_3DSliceHead \
     --patient_dataset_type 3D_flash_attn \
-    --transform_type monai_3D \
-    --color_mode gray \
+    --transform_type volume_3D \
+    --color_mode rgb \
     --epochs 100 \
     --blr 5e-3 \
     --layer_decay 0.65 \
