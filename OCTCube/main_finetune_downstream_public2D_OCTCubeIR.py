@@ -204,17 +204,25 @@ def load_octcubeir_2d_tower_checkpoint(model, finetune_path):
         "inspect_mm_octcube_ir_keys.py before running.")
 
     state_dict = model.state_dict()
+    expected_missing_keys = set()
     for k in ['head.weight', 'head.bias']:
         if k in checkpoint_model and checkpoint_model[k].shape != state_dict[k].shape:
             print(f"Removing key {k} from pretrained checkpoint")
             del checkpoint_model[k]
+            expected_missing_keys.add(k)
 
     interpolate_pos_embed(model, checkpoint_model)
 
     msg = model.load_state_dict(checkpoint_model, strict=False)
     print(msg)
     print(msg.missing_keys)
-    assert set(msg.missing_keys) == {'head.weight', 'head.bias', 'fc_norm.weight', 'fc_norm.bias'}, \
+    # Unlike a plain RETFound checkpoint (pretrained with global_pool=False, so
+    # fc_norm is a fresh module missing from it), OCTCube-IR's en-face tower was
+    # itself pretrained with global_pool=True, so its fc_norm.{weight,bias} match
+    # this model's shape (LayerNorm(embed_dim), independent of num_classes) and
+    # load successfully. Only head.{weight,bias} can go missing, and only when
+    # num_classes differs from the checkpoint's CLIP projection dim.
+    assert set(msg.missing_keys) == expected_missing_keys, \
         f"Unexpected missing keys after loading OCTCube-IR's en-face tower: {msg.missing_keys}"
 
     # manually initialize fc layer, as the other Center2D_flash_attn scripts do
