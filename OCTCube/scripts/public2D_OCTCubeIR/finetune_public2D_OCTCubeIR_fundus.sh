@@ -10,6 +10,12 @@
 #SBATCH --account=ruogu.fang
 #SBATCH --qos=ruogu.fang
 
+date;hostname;pwd
+
+module purge
+module load conda
+conda activate octcube
+
 # Fine-tune + evaluate OCTCube-IR's 2D en-face tower (see
 # ../../main_finetune_downstream_public2D_OCTCubeIR_fundus.py) on the same
 # 7-dataset public fundus benchmark MIRAGE's run_fundus_all_tasks_l4.sh /

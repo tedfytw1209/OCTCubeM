@@ -10,6 +10,12 @@
 #SBATCH --account=ruogu.fang
 #SBATCH --qos=ruogu.fang
 
+date;hostname;pwd
+
+module purge
+module load conda
+conda activate octcube
+
 # Fine-tune + evaluate OCTCube-IR's 2D en-face tower (see
 # ../../main_finetune_downstream_public2D_OCTCubeIR.py) on all four public
 # single-B-scan classification datasets that already have a Center2D_flash_attn
