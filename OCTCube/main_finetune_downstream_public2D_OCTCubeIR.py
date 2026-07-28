@@ -578,6 +578,18 @@ def main(args):
         max_bal_acc_test = 0.0
         max_f1 = 0.0
         max_f1_test = 0.0
+        # Precision/Recall/Kappa/MCC at the best (val_metric-selected) epoch --
+        # engine_finetune.evaluate() already computes these every call (see its
+        # macro_metrics dict); tracked here the same way max_f1/max_bal_acc are,
+        # so they show up in wandb and in fold_results.txt alongside ACC/AUC/PR/F1.
+        max_precision = 0.0
+        max_recall = 0.0
+        max_kappa = 0.0
+        max_mcc = 0.0
+        max_precision_test = 0.0
+        max_recall_test = 0.0
+        max_kappa_test = 0.0
+        max_mcc_test = 0.0
         val_mode = f'val_fold_{fold}'
 
         if args.task_mode == 'binary_cls':
@@ -674,10 +686,16 @@ def main(args):
             val_f1 = val_stats.get('f1', 0.0)
             if max_flag is True:
                 max_f1 = val_f1
+                max_precision = val_stats.get('precision', 0.0)
+                max_recall = val_stats.get('recall', 0.0)
+                max_kappa = val_stats.get('kappa', 0.0)
+                max_mcc = val_stats.get('mcc', 0.0)
                 print(f"Max AUC: {max_auc}, Max ACC: {max_accuracy}, Max AUCPR: {max_auc_pr}, "
-                      f"Max Bal Acc: {max_bal_acc}, Max F1: {max_f1}, at epoch {epoch}")
+                      f"Max Bal Acc: {max_bal_acc}, Max F1: {max_f1}, Max Precision: {max_precision}, "
+                      f"Max Recall: {max_recall}, Max Kappa: {max_kappa}, Max MCC: {max_mcc}, at epoch {epoch}")
                 print(f"Max AUC: {max_auc}, Max ACC: {max_accuracy}, Max AUCPR: {max_auc_pr}, "
-                      f"Max Bal Acc: {max_bal_acc}, Max F1: {max_f1}, at epoch {epoch}",
+                      f"Max Bal Acc: {max_bal_acc}, Max F1: {max_f1}, Max Precision: {max_precision}, "
+                      f"Max Recall: {max_recall}, Max Kappa: {max_kappa}, Max MCC: {max_mcc}, at epoch {epoch}",
                       file=open(os.path.join(args.output_dir, f"auc_fold_{fold}.txt"), mode="a"))
                 if args.output_dir and args.save_model:
                     misc.save_model(
@@ -747,10 +765,16 @@ def main(args):
 
                 if max_flag_test is True:
                     max_f1_test = test_stats.get('f1', max_f1_test)
+                    max_precision_test = test_stats.get('precision', max_precision_test)
+                    max_recall_test = test_stats.get('recall', max_recall_test)
+                    max_kappa_test = test_stats.get('kappa', max_kappa_test)
+                    max_mcc_test = test_stats.get('mcc', max_mcc_test)
                     print(f"Max AUC: {max_auc_test}, Max ACC: {max_accuracy_test}, Max AUCPR: {max_auc_pr_test}, "
-                          f"Max Bal Acc: {max_bal_acc_test}, Max F1: {max_f1_test}, at epoch {epoch}")
+                          f"Max Bal Acc: {max_bal_acc_test}, Max F1: {max_f1_test}, Max Precision: {max_precision_test}, "
+                          f"Max Recall: {max_recall_test}, Max Kappa: {max_kappa_test}, Max MCC: {max_mcc_test}, at epoch {epoch}")
                     print(f"Max AUC: {max_auc_test}, Max ACC: {max_accuracy_test}, Max AUCPR: {max_auc_pr_test}, "
-                          f"Max Bal Acc: {max_bal_acc_test}, Max F1: {max_f1_test}, at epoch {epoch}",
+                          f"Max Bal Acc: {max_bal_acc_test}, Max F1: {max_f1_test}, Max Precision: {max_precision_test}, "
+                          f"Max Recall: {max_recall_test}, Max Kappa: {max_kappa_test}, Max MCC: {max_mcc_test}, at epoch {epoch}",
                           file=open(os.path.join(args.output_dir, f"auc_test_fold_{fold}.txt"), mode="a"))
 
             if log_writer is not None:
@@ -772,6 +796,10 @@ def main(args):
                     f'fold_{fold}/max_val_acc': max_accuracy,
                     f'fold_{fold}/max_val_auc_pr': max_auc_pr,
                     f'fold_{fold}/max_val_f1': max_f1,
+                    f'fold_{fold}/max_val_precision': max_precision,
+                    f'fold_{fold}/max_val_recall': max_recall,
+                    f'fold_{fold}/max_val_kappa': max_kappa,
+                    f'fold_{fold}/max_val_mcc': max_mcc,
                 })
                 if args.return_bal_acc and val_bal_acc is not None:
                     wandb_log[f'fold_{fold}/val_bal_acc'] = val_bal_acc
@@ -783,7 +811,9 @@ def main(args):
                              'epoch': epoch, 'n_parameters': n_parameters,
                              'max_val_acc': max_accuracy, 'max_val_auc': max_auc,
                              'max_val_auc_pr': max_auc_pr, 'max_val_epoch': max_epoch,
-                             'max_val_bal_acc': max_bal_acc, 'max_val_f1': max_f1}
+                             'max_val_bal_acc': max_bal_acc, 'max_val_f1': max_f1,
+                             'max_val_precision': max_precision, 'max_val_recall': max_recall,
+                             'max_val_kappa': max_kappa, 'max_val_mcc': max_mcc}
                 if args.output_dir and misc.is_main_process():
                     if log_writer is not None:
                         log_writer.flush()
@@ -795,52 +825,47 @@ def main(args):
         print('Training time {}'.format(total_time_str))
         print('Training time {}'.format(total_time_str), file=open(os.path.join(args.output_dir, f"time_fold_{fold}.txt"), mode="a"))
 
-        if args.return_bal_acc:
-            fold_results.append((max_auc, max_accuracy, max_auc_pr, max_bal_acc, max_f1))
-            fold_results_test.append((max_auc_test, max_accuracy_test, max_auc_pr_test, max_bal_acc_test, max_f1_test))
-        else:
-            fold_results.append((max_auc, max_accuracy, max_auc_pr, max_f1))
-            fold_results_test.append((max_auc_test, max_accuracy_test, max_auc_pr_test, max_f1_test))
-
-    fold_results = np.array(fold_results)
-    fold_results_mean = np.mean(fold_results, axis=0)
-    fold_results_std = np.std(fold_results, axis=0)
-    print(f"Fold results: {fold_results}\nMean: {fold_results_mean}\nStd: {fold_results_std}")
-    print(f"Fold results: {fold_results}\nMean: {fold_results_mean}\nStd: {fold_results_std}",
-          file=open(os.path.join(args.output_dir, "fold_results.txt"), mode="a"))
-
-    fold_results_test = np.array(fold_results_test)
-    fold_results_mean_test = np.mean(fold_results_test, axis=0)
-    fold_results_std_test = np.std(fold_results_test, axis=0)
-    print(f"Fold results: {fold_results_test}\nMean: {fold_results_mean_test}\nStd: {fold_results_std_test}")
-    print(f"Fold results: {fold_results_test}\nMean: {fold_results_mean_test}\nStd: {fold_results_std_test}",
-          file=open(os.path.join(args.output_dir, "fold_results_test.txt"), mode="a"))
-
-    if args.use_wandb and global_rank == 0:
-        wandb_summary = {
-            'final/mean_val_auc': fold_results_mean[0], 'final/mean_val_acc': fold_results_mean[1],
-            'final/mean_val_auc_pr': fold_results_mean[2],
-            'final/std_val_auc': fold_results_std[0], 'final/std_val_acc': fold_results_std[1],
-            'final/std_val_auc_pr': fold_results_std[2],
-            'final/mean_test_auc': fold_results_mean_test[0], 'final/mean_test_acc': fold_results_mean_test[1],
-            'final/mean_test_auc_pr': fold_results_mean_test[2],
-            'final/std_test_auc': fold_results_std_test[0], 'final/std_test_acc': fold_results_std_test[1],
-            'final/std_test_auc_pr': fold_results_std_test[2],
+        # Named dict (not a positional tuple) so ACC/F1/AUC/PR/Precision/Recall/
+        # Kappa/MCC[/BalAcc] -- all 8 metrics engine_finetune.evaluate() already
+        # computes -- are always explicit in fold_results*.txt and in wandb,
+        # matching MIRAGE's EVAL_CSV_COLUMNS convention.
+        val_fold_metrics = {
+            'auc': max_auc, 'acc': max_accuracy, 'auc_pr': max_auc_pr,
+            'precision': max_precision, 'recall': max_recall,
+            'kappa': max_kappa, 'mcc': max_mcc, 'f1': max_f1,
+        }
+        test_fold_metrics = {
+            'auc': max_auc_test, 'acc': max_accuracy_test, 'auc_pr': max_auc_pr_test,
+            'precision': max_precision_test, 'recall': max_recall_test,
+            'kappa': max_kappa_test, 'mcc': max_mcc_test, 'f1': max_f1_test,
         }
         if args.return_bal_acc:
-            wandb_summary['final/mean_val_bal_acc'] = fold_results_mean[3]
-            wandb_summary['final/std_val_bal_acc'] = fold_results_std[3]
-            wandb_summary['final/mean_test_bal_acc'] = fold_results_mean_test[3]
-            wandb_summary['final/std_test_bal_acc'] = fold_results_std_test[3]
-            wandb_summary['final/mean_val_f1'] = fold_results_mean[4]
-            wandb_summary['final/std_val_f1'] = fold_results_std[4]
-            wandb_summary['final/mean_test_f1'] = fold_results_mean_test[4]
-            wandb_summary['final/std_test_f1'] = fold_results_std_test[4]
-        else:
-            wandb_summary['final/mean_val_f1'] = fold_results_mean[3]
-            wandb_summary['final/std_val_f1'] = fold_results_std[3]
-            wandb_summary['final/mean_test_f1'] = fold_results_mean_test[3]
-            wandb_summary['final/std_test_f1'] = fold_results_std_test[3]
+            val_fold_metrics['bal_acc'] = max_bal_acc
+            test_fold_metrics['bal_acc'] = max_bal_acc_test
+        fold_results.append(val_fold_metrics)
+        fold_results_test.append(test_fold_metrics)
+
+    def summarize_fold_results(results, label):
+        names = list(results[0].keys())
+        arr = np.array([[r[n] for n in names] for r in results])
+        mean = dict(zip(names, np.mean(arr, axis=0)))
+        std = dict(zip(names, np.std(arr, axis=0)))
+        print(f"{label} fold results: {results}\nMean: {mean}\nStd: {std}")
+        print(f"{label} fold results: {results}\nMean: {mean}\nStd: {std}",
+              file=open(os.path.join(args.output_dir, f"fold_results_{label}.txt"), mode="a"))
+        return mean, std
+
+    val_mean, val_std = summarize_fold_results(fold_results, 'val')
+    test_mean, test_std = summarize_fold_results(fold_results_test, 'test')
+
+    if args.use_wandb and global_rank == 0:
+        wandb_summary = {}
+        for name, value in val_mean.items():
+            wandb_summary[f'final/mean_val_{name}'] = value
+            wandb_summary[f'final/std_val_{name}'] = val_std[name]
+        for name, value in test_mean.items():
+            wandb_summary[f'final/mean_test_{name}'] = value
+            wandb_summary[f'final/std_test_{name}'] = test_std[name]
         wandb.log(wandb_summary)
         wandb.finish()
 

@@ -381,6 +381,18 @@ def main(args):
     max_bal_acc_test = 0.0
     max_f1 = 0.0
     max_f1_test = 0.0
+    # Precision/Recall/Kappa/MCC at the best (val_metric-selected) epoch --
+    # engine_finetune.evaluate() already computes these every call (see its
+    # macro_metrics dict); tracked here the same way max_f1/max_bal_acc are,
+    # so they show up in wandb and in results.txt alongside ACC/AUC/PR/F1.
+    max_precision = 0.0
+    max_recall = 0.0
+    max_kappa = 0.0
+    max_mcc = 0.0
+    max_precision_test = 0.0
+    max_recall_test = 0.0
+    max_kappa_test = 0.0
+    max_mcc_test = 0.0
 
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
@@ -473,10 +485,16 @@ def main(args):
         val_f1 = val_stats.get('f1', 0.0)
         if max_flag is True:
             max_f1 = val_f1
+            max_precision = val_stats.get('precision', 0.0)
+            max_recall = val_stats.get('recall', 0.0)
+            max_kappa = val_stats.get('kappa', 0.0)
+            max_mcc = val_stats.get('mcc', 0.0)
             print(f"Max AUC: {max_auc}, Max ACC: {max_accuracy}, Max AUCPR: {max_auc_pr}, "
-                  f"Max Bal Acc: {max_bal_acc}, Max F1: {max_f1}, at epoch {epoch}")
+                  f"Max Bal Acc: {max_bal_acc}, Max F1: {max_f1}, Max Precision: {max_precision}, "
+                  f"Max Recall: {max_recall}, Max Kappa: {max_kappa}, Max MCC: {max_mcc}, at epoch {epoch}")
             print(f"Max AUC: {max_auc}, Max ACC: {max_accuracy}, Max AUCPR: {max_auc_pr}, "
-                  f"Max Bal Acc: {max_bal_acc}, Max F1: {max_f1}, at epoch {epoch}",
+                  f"Max Bal Acc: {max_bal_acc}, Max F1: {max_f1}, Max Precision: {max_precision}, "
+                  f"Max Recall: {max_recall}, Max Kappa: {max_kappa}, Max MCC: {max_mcc}, at epoch {epoch}",
                   file=open(os.path.join(args.output_dir, "auc.txt"), mode="a"))
             if args.output_dir and args.save_model:
                 misc.save_model(
@@ -545,10 +563,16 @@ def main(args):
 
             if max_flag_test is True:
                 max_f1_test = test_stats.get('f1', max_f1_test)
+                max_precision_test = test_stats.get('precision', max_precision_test)
+                max_recall_test = test_stats.get('recall', max_recall_test)
+                max_kappa_test = test_stats.get('kappa', max_kappa_test)
+                max_mcc_test = test_stats.get('mcc', max_mcc_test)
                 print(f"Max AUC: {max_auc_test}, Max ACC: {max_accuracy_test}, Max AUCPR: {max_auc_pr_test}, "
-                      f"Max Bal Acc: {max_bal_acc_test}, Max F1: {max_f1_test}, at epoch {epoch}")
+                      f"Max Bal Acc: {max_bal_acc_test}, Max F1: {max_f1_test}, Max Precision: {max_precision_test}, "
+                      f"Max Recall: {max_recall_test}, Max Kappa: {max_kappa_test}, Max MCC: {max_mcc_test}, at epoch {epoch}")
                 print(f"Max AUC: {max_auc_test}, Max ACC: {max_accuracy_test}, Max AUCPR: {max_auc_pr_test}, "
-                      f"Max Bal Acc: {max_bal_acc_test}, Max F1: {max_f1_test}, at epoch {epoch}",
+                      f"Max Bal Acc: {max_bal_acc_test}, Max F1: {max_f1_test}, Max Precision: {max_precision_test}, "
+                      f"Max Recall: {max_recall_test}, Max Kappa: {max_kappa_test}, Max MCC: {max_mcc_test}, at epoch {epoch}",
                       file=open(os.path.join(args.output_dir, "auc_test.txt"), mode="a"))
 
         if log_writer is not None:
@@ -567,6 +591,8 @@ def main(args):
                 'val_auc': val_auc_roc, 'val_auc_pr': val_auc_pr,
                 'max_val_auc': max_auc, 'max_val_acc': max_accuracy,
                 'max_val_auc_pr': max_auc_pr, 'max_val_f1': max_f1,
+                'max_val_precision': max_precision, 'max_val_recall': max_recall,
+                'max_val_kappa': max_kappa, 'max_val_mcc': max_mcc,
             })
             if args.return_bal_acc and val_bal_acc is not None:
                 wandb_log['val_bal_acc'] = val_bal_acc
@@ -578,7 +604,9 @@ def main(args):
                          'epoch': epoch, 'n_parameters': n_parameters,
                          'max_val_acc': max_accuracy, 'max_val_auc': max_auc,
                          'max_val_auc_pr': max_auc_pr, 'max_val_epoch': max_epoch,
-                         'max_val_bal_acc': max_bal_acc, 'max_val_f1': max_f1}
+                         'max_val_bal_acc': max_bal_acc, 'max_val_f1': max_f1,
+                         'max_val_precision': max_precision, 'max_val_recall': max_recall,
+                         'max_val_kappa': max_kappa, 'max_val_mcc': max_mcc}
             if args.output_dir and misc.is_main_process():
                 if log_writer is not None:
                     log_writer.flush()
@@ -590,29 +618,33 @@ def main(args):
     print('Training time {}'.format(total_time_str))
     print('Training time {}'.format(total_time_str), file=open(os.path.join(args.output_dir, "time.txt"), mode="a"))
 
+    # Named dict (not a positional tuple) so ACC/F1/AUC/PR/Precision/Recall/
+    # Kappa/MCC[/BalAcc] -- all 8 metrics engine_finetune.evaluate() already
+    # computes -- are always explicit in results.txt and in wandb, matching
+    # MIRAGE's EVAL_CSV_COLUMNS convention.
+    val_metrics = {
+        'auc': max_auc, 'acc': max_accuracy, 'auc_pr': max_auc_pr,
+        'precision': max_precision, 'recall': max_recall,
+        'kappa': max_kappa, 'mcc': max_mcc, 'f1': max_f1,
+    }
+    test_metrics = {
+        'auc': max_auc_test, 'acc': max_accuracy_test, 'auc_pr': max_auc_pr_test,
+        'precision': max_precision_test, 'recall': max_recall_test,
+        'kappa': max_kappa_test, 'mcc': max_mcc_test, 'f1': max_f1_test,
+    }
     if args.return_bal_acc:
-        results = (max_auc, max_accuracy, max_auc_pr, max_bal_acc, max_f1)
-        results_test = (max_auc_test, max_accuracy_test, max_auc_pr_test, max_bal_acc_test, max_f1_test)
-    else:
-        results = (max_auc, max_accuracy, max_auc_pr, max_f1)
-        results_test = (max_auc_test, max_accuracy_test, max_auc_pr_test, max_f1_test)
+        val_metrics['bal_acc'] = max_bal_acc
+        test_metrics['bal_acc'] = max_bal_acc_test
 
-    print(f"Val results (AUC, ACC, AUCPR[, BalAcc], F1): {results}")
-    print(f"Val results (AUC, ACC, AUCPR[, BalAcc], F1): {results}",
-          file=open(os.path.join(args.output_dir, "results.txt"), mode="a"))
-    print(f"Test results (AUC, ACC, AUCPR[, BalAcc], F1): {results_test}")
-    print(f"Test results (AUC, ACC, AUCPR[, BalAcc], F1): {results_test}",
-          file=open(os.path.join(args.output_dir, "results_test.txt"), mode="a"))
+    print(f"Val results: {val_metrics}")
+    print(f"Val results: {val_metrics}", file=open(os.path.join(args.output_dir, "results.txt"), mode="a"))
+    print(f"Test results: {test_metrics}")
+    print(f"Test results: {test_metrics}", file=open(os.path.join(args.output_dir, "results_test.txt"), mode="a"))
 
     if args.use_wandb and global_rank == 0:
-        wandb_summary = {
-            'final/val_auc': max_auc, 'final/val_acc': max_accuracy, 'final/val_auc_pr': max_auc_pr,
-            'final/test_auc': max_auc_test, 'final/test_acc': max_accuracy_test, 'final/test_auc_pr': max_auc_pr_test,
-            'final/val_f1': max_f1, 'final/test_f1': max_f1_test,
-        }
-        if args.return_bal_acc:
-            wandb_summary['final/val_bal_acc'] = max_bal_acc
-            wandb_summary['final/test_bal_acc'] = max_bal_acc_test
+        wandb_summary = {}
+        wandb_summary.update({f'final/val_{k}': v for k, v in val_metrics.items()})
+        wandb_summary.update({f'final/test_{k}': v for k, v in test_metrics.items()})
         wandb.log(wandb_summary)
         wandb.finish()
 

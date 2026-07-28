@@ -28,7 +28,9 @@ DATA_ROOT="/orange/ruogu.fang/tienyuchang/OCTRFF_Data/benchmark/"
 
 # OCTCube-IR's jointly-pretrained checkpoint; only its en-face ("text.") tower
 # is used here (see load_octcubeir_2d_tower_checkpoint in the python script).
-OCTCUBEIR_CKPT=$HOME/OCTCubeM/ckpt/mm_octcube_ir.pt
+ROOT=/blue/ruogu.fang
+prefix=tienyuchang
+OCTCUBEIR_CKPT=${ROOT}/${prefix}/OCTCubeM/ckpt/mm_octcube_ir.pt
 
 LOG_DIR=$HOME/log_pt/
 OUTPUT_DIR=$HOME/OCTCubeM_results/outputs_ft_public2D_octcubeir_fundus/
