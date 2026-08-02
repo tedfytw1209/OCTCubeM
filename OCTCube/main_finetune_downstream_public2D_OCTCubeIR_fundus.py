@@ -210,9 +210,44 @@ def build_fundus_dataset(subset, args, transform):
     return datasets.ImageFolder(root, transform=transform)
 
 
+def get_validation_score(metric, val_stats, val_auc_roc, val_auc_pr, val_bal_acc=None):
+    """Return the single validation score used for checkpoint selection."""
+    if metric == 'AUC':
+        return float(val_auc_roc)
+    if metric == 'AUPRC':
+        return float(val_auc_pr)
+    if metric == 'ACC':
+        return float(val_stats['acc1'])
+    if metric == 'BalAcc':
+        if val_bal_acc is None:
+            raise ValueError('--val_metric BalAcc requires --return_bal_acc')
+        return float(val_bal_acc)
+    raise ValueError(f'Unknown validation metric: {metric}')
+
+
+def build_metric_snapshot(val_stats, val_auc_roc, val_auc_pr, val_bal_acc=None):
+    """Copy all reported validation metrics from one evaluated epoch."""
+    metrics = {
+        'auc': val_auc_roc,
+        'acc': val_stats['acc1'],
+        'auc_pr': val_auc_pr,
+        'precision': val_stats.get('precision', 0.0),
+        'recall': val_stats.get('recall', 0.0),
+        'kappa': val_stats.get('kappa', 0.0),
+        'mcc': val_stats.get('mcc', 0.0),
+        'f1': val_stats.get('f1', 0.0),
+    }
+    if val_bal_acc is not None:
+        metrics['bal_acc'] = val_bal_acc
+    return metrics
+
+
 def main(args):
     misc.init_distributed_mode(args)
     args = process_args(args)
+
+    if args.val_metric == 'BalAcc' and not args.return_bal_acc:
+        raise ValueError('--val_metric BalAcc requires --return_bal_acc')
 
     print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
     print("{}".format(args).replace(', ', ',\n'))
@@ -370,29 +405,9 @@ def main(args):
 
     print(f"Start training for {args.epochs} epochs")
     start_time = time.time()
-    max_accuracy = 0.0
-    max_auc = 0.0
-    max_auc_pr = 0.0
-    max_epoch = 0
-    max_accuracy_test = 0.0
-    max_auc_test = 0.0
-    max_auc_pr_test = 0.0
-    max_bal_acc = 0.0
-    max_bal_acc_test = 0.0
-    max_f1 = 0.0
-    max_f1_test = 0.0
-    # Precision/Recall/Kappa/MCC at the best (val_metric-selected) epoch --
-    # engine_finetune.evaluate() already computes these every call (see its
-    # macro_metrics dict); tracked here the same way max_f1/max_bal_acc are,
-    # so they show up in wandb and in results.txt alongside ACC/AUC/PR/F1.
-    max_precision = 0.0
-    max_recall = 0.0
-    max_kappa = 0.0
-    max_mcc = 0.0
-    max_precision_test = 0.0
-    max_recall_test = 0.0
-    max_kappa_test = 0.0
-    max_mcc_test = 0.0
+    best_score = -float('inf')
+    best_epoch = None
+    best_val_metrics = None
 
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
@@ -418,162 +433,21 @@ def main(args):
             print(f'break at {epoch}', file=open(os.path.join(args.output_dir, "auc.txt"), mode="a"))
             break
 
-        max_flag = False
-        if args.val_metric == 'AUC':
-            if max_auc <= val_auc_roc:
-                max_auc = val_auc_roc
-                if max_auc < val_auc_roc:
-                    max_epoch = epoch
-                    max_flag = True
-                elif max_accuracy <= val_stats['acc1']:
-                    max_accuracy = val_stats['acc1']
-                    max_epoch = epoch
-                    max_flag = True
-                elif max_auc_pr <= val_auc_pr:
-                    max_auc_pr = val_auc_pr
-                    max_epoch = epoch
-                    max_flag = True
-        elif args.val_metric == 'AUPRC':
-            if max_auc_pr <= val_auc_pr:
-                if max_auc_pr < val_auc_pr:
-                    max_epoch = epoch
-                    max_auc = val_auc_roc
-                    max_accuracy = val_stats['acc1']
-                    max_flag = True
-                max_auc_pr = val_auc_pr
-                if max_accuracy <= val_stats['acc1']:
-                    max_accuracy = val_stats['acc1']
-                    max_auc = val_auc_roc
-                    max_epoch = epoch
-                    max_flag = True
-                elif max_auc <= val_auc_roc:
-                    max_auc = val_auc_roc
-                    max_accuracy = val_stats['acc1']
-                    max_epoch = epoch
-                    max_flag = True
-                if args.return_bal_acc and val_bal_acc is not None and val_bal_acc > max_bal_acc:
-                    max_bal_acc = val_bal_acc
-                    max_flag = True
-        elif args.val_metric == 'BalAcc':
-            if max_bal_acc <= val_bal_acc:
-                if max_bal_acc < val_bal_acc:
-                    max_epoch = epoch
-                    max_auc = val_auc_roc
-                    max_accuracy = val_stats['acc1']
-                    max_auc_pr = val_auc_pr
-                    max_flag = True
-                max_bal_acc = val_bal_acc
-                if max_auc < val_auc_roc:
-                    max_auc = val_auc_roc
-                    max_accuracy = val_stats['acc1']
-                    max_auc_pr = val_auc_pr
-                    max_epoch = epoch
-                    max_flag = True
-                if max_auc_pr < val_auc_pr:
-                    max_auc_pr = val_auc_pr
-                    max_accuracy = val_stats['acc1']
-                    max_auc = val_auc_roc
-                    max_epoch = epoch
-                    max_flag = True
-                if max_accuracy < val_stats['acc1']:
-                    max_accuracy = val_stats['acc1']
-                    max_auc = val_auc_roc
-                    max_auc_pr = val_auc_pr
-                    max_epoch = epoch
-                    max_flag = True
-
-        val_f1 = val_stats.get('f1', 0.0)
-        if max_flag is True:
-            max_f1 = val_f1
-            max_precision = val_stats.get('precision', 0.0)
-            max_recall = val_stats.get('recall', 0.0)
-            max_kappa = val_stats.get('kappa', 0.0)
-            max_mcc = val_stats.get('mcc', 0.0)
-            print(f"Max AUC: {max_auc}, Max ACC: {max_accuracy}, Max AUCPR: {max_auc_pr}, "
-                  f"Max Bal Acc: {max_bal_acc}, Max F1: {max_f1}, Max Precision: {max_precision}, "
-                  f"Max Recall: {max_recall}, Max Kappa: {max_kappa}, Max MCC: {max_mcc}, at epoch {epoch}")
-            print(f"Max AUC: {max_auc}, Max ACC: {max_accuracy}, Max AUCPR: {max_auc_pr}, "
-                  f"Max Bal Acc: {max_bal_acc}, Max F1: {max_f1}, Max Precision: {max_precision}, "
-                  f"Max Recall: {max_recall}, Max Kappa: {max_kappa}, Max MCC: {max_mcc}, at epoch {epoch}",
+        current_bal_acc = val_bal_acc if args.return_bal_acc else None
+        val_score = get_validation_score(
+            args.val_metric, val_stats, val_auc_roc, val_auc_pr, current_bal_acc)
+        max_flag = val_score > best_score
+        if max_flag:
+            best_score = val_score
+            best_epoch = epoch
+            best_val_metrics = build_metric_snapshot(
+                val_stats, val_auc_roc, val_auc_pr, current_bal_acc)
+            print(f"Best {args.val_metric}: {best_score} at epoch {best_epoch}")
+            print(f"Best {args.val_metric}: {best_score} at epoch {best_epoch}",
                   file=open(os.path.join(args.output_dir, "auc.txt"), mode="a"))
-            if args.output_dir and args.save_model:
-                misc.save_model(
-                    args=args, model=model, model_without_ddp=model_without_ddp,
-                    optimizer=optimizer, loss_scaler=loss_scaler, epoch=epoch)
-
-        if max_flag or epoch == (args.epochs - 1):
-            init_csv_writer(args.task, mode='test')
-            try:
-                test_stats, test_auc_roc, test_auc_pr = evaluate(
-                    data_loader_test, model, device, args.task, epoch, mode='test',
-                    num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode,
-                    disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
-                if args.return_bal_acc:
-                    test_auc_pr, test_bal_acc = test_auc_pr
-            except ValueError as e:
-                print(e)
-                print('break')
-                break
-
-            if args.use_wandb and global_rank == 0:
-                wandb_test_log = {'epoch': epoch}
-                wandb_test_log.update({f'test_{k}': v for k, v in test_stats.items()})
-                wandb_test_log.update({'test_auc': test_auc_roc, 'test_auc_pr': test_auc_pr})
-                if args.return_bal_acc and test_bal_acc is not None:
-                    wandb_test_log['test_bal_acc'] = test_bal_acc
-                wandb.log(wandb_test_log, step=epoch)
-
-            max_flag_test = False
-            if args.val_metric == 'AUC':
-                if max_auc_test <= test_auc_roc:
-                    max_auc_test = test_auc_roc
-                    if max_auc_test < test_auc_roc:
-                        max_flag_test = True
-                    elif max_accuracy_test <= test_stats['acc1']:
-                        max_accuracy_test = test_stats['acc1']
-                        max_flag_test = True
-                    elif max_auc_pr_test <= test_auc_pr:
-                        max_auc_pr_test = test_auc_pr
-                        max_flag_test = True
-            elif args.val_metric == 'AUPRC':
-                if max_auc_pr_test <= test_auc_pr:
-                    if max_auc_pr_test < test_auc_pr:
-                        max_auc_test = test_auc_roc
-                        max_accuracy_test = test_stats['acc1']
-                        max_flag_test = True
-                    max_auc_pr_test = test_auc_pr
-                    if max_accuracy_test <= test_stats['acc1']:
-                        max_accuracy_test = test_stats['acc1']
-                        max_auc_test = test_auc_roc
-                        max_flag_test = True
-                    elif max_auc_test <= test_auc_roc:
-                        max_auc_test = test_auc_roc
-                        max_accuracy_test = test_stats['acc1']
-                        max_flag_test = True
-                    if args.return_bal_acc:
-                        max_bal_acc_test = test_bal_acc
-                        max_flag_test = True
-            elif args.val_metric == 'BalAcc':
-                if max_bal_acc_test <= test_bal_acc:
-                    max_bal_acc_test = test_bal_acc
-                    max_auc_test = test_auc_roc
-                    max_accuracy_test = test_stats['acc1']
-                    max_auc_pr_test = test_auc_pr
-                    max_flag_test = True
-
-            if max_flag_test is True:
-                max_f1_test = test_stats.get('f1', max_f1_test)
-                max_precision_test = test_stats.get('precision', max_precision_test)
-                max_recall_test = test_stats.get('recall', max_recall_test)
-                max_kappa_test = test_stats.get('kappa', max_kappa_test)
-                max_mcc_test = test_stats.get('mcc', max_mcc_test)
-                print(f"Max AUC: {max_auc_test}, Max ACC: {max_accuracy_test}, Max AUCPR: {max_auc_pr_test}, "
-                      f"Max Bal Acc: {max_bal_acc_test}, Max F1: {max_f1_test}, Max Precision: {max_precision_test}, "
-                      f"Max Recall: {max_recall_test}, Max Kappa: {max_kappa_test}, Max MCC: {max_mcc_test}, at epoch {epoch}")
-                print(f"Max AUC: {max_auc_test}, Max ACC: {max_accuracy_test}, Max AUCPR: {max_auc_pr_test}, "
-                      f"Max Bal Acc: {max_bal_acc_test}, Max F1: {max_f1_test}, Max Precision: {max_precision_test}, "
-                      f"Max Recall: {max_recall_test}, Max Kappa: {max_kappa_test}, Max MCC: {max_mcc_test}, at epoch {epoch}",
-                      file=open(os.path.join(args.output_dir, "auc_test.txt"), mode="a"))
+            misc.save_model(
+                args=args, model=model, model_without_ddp=model_without_ddp,
+                optimizer=optimizer, loss_scaler=loss_scaler, epoch=epoch)
 
         if log_writer is not None:
             log_writer.add_scalar('perf/val_acc1', val_stats['acc1'], epoch)
@@ -589,24 +463,25 @@ def main(args):
             wandb_log.update({f'val_{k}': v for k, v in val_stats.items()})
             wandb_log.update({
                 'val_auc': val_auc_roc, 'val_auc_pr': val_auc_pr,
-                'max_val_auc': max_auc, 'max_val_acc': max_accuracy,
-                'max_val_auc_pr': max_auc_pr, 'max_val_f1': max_f1,
-                'max_val_precision': max_precision, 'max_val_recall': max_recall,
-                'max_val_kappa': max_kappa, 'max_val_mcc': max_mcc,
+                'max_val_auc': best_val_metrics['auc'], 'max_val_acc': best_val_metrics['acc'],
+                'max_val_auc_pr': best_val_metrics['auc_pr'], 'max_val_f1': best_val_metrics['f1'],
+                'max_val_precision': best_val_metrics['precision'], 'max_val_recall': best_val_metrics['recall'],
+                'max_val_kappa': best_val_metrics['kappa'], 'max_val_mcc': best_val_metrics['mcc'],
             })
             if args.return_bal_acc and val_bal_acc is not None:
                 wandb_log['val_bal_acc'] = val_bal_acc
-                wandb_log['max_val_bal_acc'] = max_bal_acc
+                wandb_log['max_val_bal_acc'] = best_val_metrics['bal_acc']
             wandb.log(wandb_log, step=epoch)
 
         if train_stats is not None:
             log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
                          'epoch': epoch, 'n_parameters': n_parameters,
-                         'max_val_acc': max_accuracy, 'max_val_auc': max_auc,
-                         'max_val_auc_pr': max_auc_pr, 'max_val_epoch': max_epoch,
-                         'max_val_bal_acc': max_bal_acc, 'max_val_f1': max_f1,
-                         'max_val_precision': max_precision, 'max_val_recall': max_recall,
-                         'max_val_kappa': max_kappa, 'max_val_mcc': max_mcc}
+                         'max_val_acc': best_val_metrics['acc'], 'max_val_auc': best_val_metrics['auc'],
+                         'max_val_auc_pr': best_val_metrics['auc_pr'], 'max_val_epoch': best_epoch,
+                         'max_val_bal_acc': best_val_metrics.get('bal_acc', 0.0),
+                         'max_val_f1': best_val_metrics['f1'],
+                         'max_val_precision': best_val_metrics['precision'], 'max_val_recall': best_val_metrics['recall'],
+                         'max_val_kappa': best_val_metrics['kappa'], 'max_val_mcc': best_val_metrics['mcc']}
             if args.output_dir and misc.is_main_process():
                 if log_writer is not None:
                     log_writer.flush()
@@ -618,23 +493,31 @@ def main(args):
     print('Training time {}'.format(total_time_str))
     print('Training time {}'.format(total_time_str), file=open(os.path.join(args.output_dir, "time.txt"), mode="a"))
 
+    if best_val_metrics is None:
+        raise RuntimeError('No validation checkpoint was selected; refusing to evaluate or report test results.')
+
+    if args.distributed:
+        torch.distributed.barrier()
+    best_checkpoint_path = os.path.join(args.output_dir, 'checkpoint-best.pth')
+    checkpoint = torch.load(best_checkpoint_path, map_location='cpu')
+    model_without_ddp.load_state_dict(checkpoint['model'])
+    model.to(device)
+    print(f"Test with the validation-best model, epoch = {checkpoint['epoch']}:")
+    init_csv_writer(args.task, mode='test')
+    test_stats, test_auc_roc, test_auc_pr = evaluate(
+        data_loader_test, model, device, args.task, epoch=checkpoint['epoch'], mode='test',
+        num_class=args.nb_classes, criterion=criterion, task_mode=args.task_mode,
+        disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
+    test_bal_acc = None
+    if args.return_bal_acc:
+        test_auc_pr, test_bal_acc = test_auc_pr
+
     # Named dict (not a positional tuple) so ACC/F1/AUC/PR/Precision/Recall/
     # Kappa/MCC[/BalAcc] -- all 8 metrics engine_finetune.evaluate() already
     # computes -- are always explicit in results.txt and in wandb, matching
     # MIRAGE's EVAL_CSV_COLUMNS convention.
-    val_metrics = {
-        'auc': max_auc, 'acc': max_accuracy, 'auc_pr': max_auc_pr,
-        'precision': max_precision, 'recall': max_recall,
-        'kappa': max_kappa, 'mcc': max_mcc, 'f1': max_f1,
-    }
-    test_metrics = {
-        'auc': max_auc_test, 'acc': max_accuracy_test, 'auc_pr': max_auc_pr_test,
-        'precision': max_precision_test, 'recall': max_recall_test,
-        'kappa': max_kappa_test, 'mcc': max_mcc_test, 'f1': max_f1_test,
-    }
-    if args.return_bal_acc:
-        val_metrics['bal_acc'] = max_bal_acc
-        test_metrics['bal_acc'] = max_bal_acc_test
+    val_metrics = best_val_metrics
+    test_metrics = build_metric_snapshot(test_stats, test_auc_roc, test_auc_pr, test_bal_acc)
 
     print(f"Val results: {val_metrics}")
     print(f"Val results: {val_metrics}", file=open(os.path.join(args.output_dir, "results.txt"), mode="a"))

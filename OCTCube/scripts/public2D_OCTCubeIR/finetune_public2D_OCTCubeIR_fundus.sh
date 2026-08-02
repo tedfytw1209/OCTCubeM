@@ -50,6 +50,7 @@ launch() {
         --finetune ${OCTCUBEIR_CKPT} \
         --log_dir ${LOG_DIR} \
         --output_dir ${OUTPUT_DIR} \
+        --save_model \
         --val_metric AUPRC \
         --return_bal_acc \
         --batch_size 32 \
