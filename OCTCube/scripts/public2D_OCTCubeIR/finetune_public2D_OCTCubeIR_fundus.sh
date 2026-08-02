@@ -33,7 +33,10 @@ prefix=tienyuchang
 OCTCUBEIR_CKPT=${ROOT}/${prefix}/OCTCubeM/ckpt/mm_octcube_ir.pt
 
 LOG_DIR=$HOME/log_pt/
-OUTPUT_DIR=$HOME/OCTCubeM_results/outputs_ft_public2D_octcubeir_fundus/
+# Keep validation-selected/test-once runs separate from results produced by
+# the earlier test-peeking protocol. Reusing that directory would trigger the
+# Python script's existing-results guard before training starts.
+OUTPUT_DIR=$HOME/OCTCubeM_results/outputs_ft_public2D_octcubeir_fundus_val_selected/
 
 # 7 datasets (name:num_class, per OphFoundation's reference benchmark params;
 #   num_classes is auto-inferred by the python script from the folder
