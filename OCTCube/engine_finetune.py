@@ -24,7 +24,7 @@ from timm.utils import accuracy # type: ignore
 from typing import Iterable, Optional
 import util.misc as misc # type: ignore
 import util.lr_sched as lr_sched # type: ignore
-from sklearn.metrics import accuracy_score, roc_auc_score, f1_score, average_precision_score,multilabel_confusion_matrix, precision_score, recall_score, auc, precision_recall_curve, confusion_matrix, cohen_kappa_score # type: ignore
+from sklearn.metrics import accuracy_score, roc_auc_score, f1_score, average_precision_score,multilabel_confusion_matrix, precision_score, recall_score, auc, precision_recall_curve, confusion_matrix, cohen_kappa_score, classification_report # type: ignore
 from sklearn.metrics import r2_score, explained_variance_score, mean_squared_error, mean_absolute_error # type: ignore
 from scipy.stats import pearsonr # type: ignore
 from pycm import * # type: ignore
@@ -811,9 +811,14 @@ def evaluate(data_loader, model, device, task, epoch, mode, num_class, criterion
     # gather the stats from all processes
     true_label_decode_list = np.array(true_label_decode_list)
     prediction_decode_list = np.array(prediction_decode_list)
-    confusion_matrix = multilabel_confusion_matrix(true_label_decode_list, prediction_decode_list, labels=[i for i in range(num_class)])
+    multilabel_cm = multilabel_confusion_matrix(true_label_decode_list, prediction_decode_list, labels=[i for i in range(num_class)])
     acc = accuracy_score(true_label_decode_list, prediction_decode_list)
-    _, sensitivity, specificity, precision, G, F1, mcc, balanced_acc = misc_measures(confusion_matrix)
+    _, sensitivity, specificity, precision, G, F1, mcc, balanced_acc = misc_measures(multilabel_cm)
+
+    cm_full = confusion_matrix(true_label_decode_list, prediction_decode_list, labels=[i for i in range(num_class)])
+    report_str = classification_report(true_label_decode_list, prediction_decode_list, labels=[i for i in range(num_class)], zero_division=0)
+    print(f'{mode} confusion_matrix:\n{cm_full}')
+    print(f'{mode} classification_report:\n{report_str}')
 
     print(true_label_onehot_list[:20])
     print(prediction_list[:20])
@@ -855,6 +860,8 @@ def evaluate(data_loader, model, device, task, epoch, mode, num_class, criterion
 
     eval_stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
     eval_stats.update(macro_metrics)
+    eval_stats['confusion_matrix'] = cm_full
+    eval_stats['classification_report'] = report_str
     if return_bal_acc:
         return eval_stats, auc_roc, (auc_pr, balanced_acc)
     else:

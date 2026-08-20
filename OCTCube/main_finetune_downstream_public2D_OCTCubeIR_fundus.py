@@ -281,7 +281,7 @@ def main(args):
     dataset_train = build_fundus_dataset('train', args, train_transform)
     dataset_val = build_fundus_dataset('val', args, val_transform)
     dataset_test = build_fundus_dataset('test', args, val_transform)
-    print(f"Train/val/test sizes: {len(dataset_train)}/{len(dataset_val)}/{len(dataset_test)}")
+    print(f"Training-set size: {len(dataset_train)} Validation-set size: {len(dataset_val)} Test-set size: {len(dataset_test)}")
 
     num_tasks = misc.get_world_size()
     global_rank = misc.get_rank()
@@ -401,6 +401,8 @@ def main(args):
             disease_list=None, return_bal_acc=args.return_bal_acc, args=args)
         if args.return_bal_acc:
             test_auc_pr, test_bal_acc = auc_pr
+        print(f"Test confusion_matrix:\n{test_stats['confusion_matrix']}")
+        print(f"Test classification_report:\n{test_stats['classification_report']}")
         sys.exit(0)
 
     print(f"Start training for {args.epochs} epochs")
@@ -445,6 +447,8 @@ def main(args):
             print(f"Best {args.val_metric}: {best_score} at epoch {best_epoch}")
             print(f"Best {args.val_metric}: {best_score} at epoch {best_epoch}",
                   file=open(os.path.join(args.output_dir, "auc.txt"), mode="a"))
+            print(f"Best confusion_matrix:\n{val_stats['confusion_matrix']}")
+            print(f"Best classification_report:\n{val_stats['classification_report']}")
             misc.save_model(
                 args=args, model=model, model_without_ddp=model_without_ddp,
                 optimizer=optimizer, loss_scaler=loss_scaler, epoch=epoch)
@@ -460,7 +464,7 @@ def main(args):
         if args.use_wandb and global_rank == 0 and train_stats is not None:
             wandb_log = {'epoch': epoch}
             wandb_log.update({f'train_{k}': v for k, v in train_stats.items()})
-            wandb_log.update({f'val_{k}': v for k, v in val_stats.items()})
+            wandb_log.update({f'val_{k}': v for k, v in val_stats.items() if k not in ('confusion_matrix', 'classification_report')})
             wandb_log.update({
                 'val_auc': val_auc_roc, 'val_auc_pr': val_auc_pr,
                 'max_val_auc': best_val_metrics['auc'], 'max_val_acc': best_val_metrics['acc'],
@@ -511,6 +515,8 @@ def main(args):
     test_bal_acc = None
     if args.return_bal_acc:
         test_auc_pr, test_bal_acc = test_auc_pr
+    print(f"Test confusion_matrix:\n{test_stats['confusion_matrix']}")
+    print(f"Test classification_report:\n{test_stats['classification_report']}")
 
     # Named dict (not a positional tuple) so ACC/F1/AUC/PR/Precision/Recall/
     # Kappa/MCC[/BalAcc] -- all 8 metrics engine_finetune.evaluate() already
