@@ -281,7 +281,6 @@ def main(args):
     dataset_train = build_fundus_dataset('train', args, train_transform)
     dataset_val = build_fundus_dataset('val', args, val_transform)
     dataset_test = build_fundus_dataset('test', args, val_transform)
-    print(f"Training-set size: {len(dataset_train)} Validation-set size: {len(dataset_val)} Test-set size: {len(dataset_test)}")
 
     num_tasks = misc.get_world_size()
     global_rank = misc.get_rank()
@@ -299,6 +298,8 @@ def main(args):
             dir=args.log_dir,
             reinit=True,
         )
+    
+    print(f"Training-set size: {len(dataset_train)} Validation-set size: {len(dataset_val)} Test-set size: {len(dataset_test)}")
 
     sampler_train = torch.utils.data.DistributedSampler(
         dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True)
