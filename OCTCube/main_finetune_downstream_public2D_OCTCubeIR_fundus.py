@@ -138,6 +138,11 @@ def get_args_parser():
     parser.set_defaults(global_pool=True)
     parser.add_argument('--cls_token', action='store_false', dest='global_pool')
 
+    parser.add_argument('--freeze_extractor', default=False, action='store_true',
+                        help='Freeze the pretrained en-face tower (everything except the '
+                             "'head.*' classifier) and only train the classification head "
+                             '(linear probing instead of full fine-tuning).')
+
     parser.add_argument('--output_dir', default='./outputs_ft_public2D_octcubeir_fundus/',
                         help='Base output directory (a --data_set/args-checksum subdir is appended)')
     parser.add_argument('--log_dir', default='./output_dir')
@@ -192,7 +197,7 @@ def get_output_dir(args):
     MIRAGE's args-checksum output dirs."""
     checksum_keys = [
         'data_set', 'model', 'blr', 'layer_decay', 'weight_decay', 'drop_path',
-        'epochs', 'warmup_epochs', 'batch_size', 'seed', 'input_size',
+        'epochs', 'warmup_epochs', 'batch_size', 'seed', 'input_size', 'freeze_extractor',
     ]
     args_vars = {k: getattr(args, k) for k in checksum_keys}
     args_str = json.dumps(args_vars, indent=2, sort_keys=True)
@@ -288,12 +293,14 @@ def main(args):
     if args.use_wandb and global_rank == 0:
         wandb_task_name = args.wandb_run_name if args.wandb_run_name else (
             f'public2D-OCTCubeIR-fundus-{args.data_set}' + datetime.datetime.now().strftime("_%Y%m%d_%H%M%S"))
+        wandb_tags = [args.data_set, 'OCTCubeIR-2D', 'fundus', 'finetune']
+        wandb_tags.append('frozen-extractor' if args.freeze_extractor else 'full-finetune')
         wandb.init(
             project=args.wandb_project,
             entity=args.wandb_entity,
             name=wandb_task_name,
             group=f'public2D-OCTCubeIR-fundus-{args.data_set}',
-            tags=[args.data_set, 'OCTCubeIR-2D', 'fundus', 'finetune'],
+            tags=wandb_tags,
             config=vars(args),
             dir=args.log_dir,
             reinit=True,
@@ -354,6 +361,15 @@ def main(args):
 
     if args.finetune and not args.eval:
         load_octcubeir_2d_tower_checkpoint(model, args.finetune)
+
+    if args.freeze_extractor:
+        # Only 'head.*' is freshly initialized by load_octcubeir_2d_tower_checkpoint
+        # (fc_norm.* and everything before it come pretrained from OCTCube-IR's
+        # en-face tower) -- so freezing everything else is a clean linear probe.
+        for name, param in model.named_parameters():
+            if not name.startswith('head.'):
+                param.requires_grad = False
+        print("--freeze_extractor: en-face tower frozen, training only 'head.*'")
 
     model.to(device)
 
