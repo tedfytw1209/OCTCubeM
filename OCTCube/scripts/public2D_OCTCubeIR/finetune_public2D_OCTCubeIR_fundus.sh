@@ -32,7 +32,7 @@ ROOT=/blue/ruogu.fang
 prefix=tienyuchang
 OCTCUBEIR_CKPT=${ROOT}/${prefix}/OCTCubeM/ckpt/mm_octcube_ir.pt
 
-LOG_DIR=$HOME/log_pt/
+LOG_DIR=./log_pt/
 # Keep validation-selected/test-once runs separate from results produced by
 # the earlier test-peeking protocol. Reusing that directory would trigger the
 # Python script's existing-results guard before training starts.

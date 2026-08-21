@@ -32,7 +32,7 @@ ROOT=/blue/ruogu.fang
 prefix=tienyuchang
 OCTCUBEIR_CKPT=${ROOT}/${prefix}/OCTCubeM/ckpt/mm_octcube_ir.pt
 
-LOG_DIR=$HOME/log_pt/
+LOG_DIR=./log_pt/
 # Separate output dir from both the test-peeking-era runs and the full
 # fine-tune (val-selected) runs -- --freeze_extractor also changes the
 # output-dir checksum, but keeping the base dir distinct too makes the
