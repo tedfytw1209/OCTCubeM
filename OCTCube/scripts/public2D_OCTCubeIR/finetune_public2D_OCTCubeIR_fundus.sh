@@ -66,6 +66,7 @@ launch() {
         --drop_path 0.2 \
         --input_size 224 \
         --world_size 1 \
+        --overwrite \
         --rank -1
 }
 
