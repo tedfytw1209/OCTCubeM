@@ -1215,13 +1215,27 @@ def main(args):
             print("checkpoint keys: ", list(checkpoint.keys()))
             if 'model' in list(checkpoint.keys()):
                 checkpoint_model = checkpoint['model']
-            #TMP FOR mm_octcube_ir.pt
+            # OCTCube-IR's jointly-pretrained checkpoint (mm_octcube_ir.pt): a saved
+            # retinal-COEM CustomTextCLIP whose state_dict stores the 3D OCT tower
+            # under a 'visual.' prefix and the 2D en-face ("IR") tower under a
+            # 'text.' prefix (see main_finetune_downstream_UFcohort_OCTCubeIR.py's
+            # load_octcubeir_dual_checkpoint). Pick the matching tower by
+            # patient_dataset_type so this single-modality path can initialize
+            # either tower from the same joint checkpoint.
             elif 'state_dict' in list(checkpoint.keys()):
                 checkpoint_model = checkpoint['state_dict']
                 checkpoint_model = {k.replace('module.', '', 1): v for k, v in checkpoint_model.items()}
-                checkpoint_model = {k.replace('text.', '', 1): v for k, v in checkpoint_model.items() if k.startswith('text.')}
-                for drop_k in ['head.weight', 'head.bias', 'fc_norm.weight', 'fc_norm.bias']:
-                    checkpoint_model.pop(drop_k, None)
+                is_3d_tower = args.patient_dataset_type.startswith('3D_st')
+                tower_prefix = 'visual.' if is_3d_tower else 'text.'
+                checkpoint_model = {k[len(tower_prefix):]: v for k, v in checkpoint_model.items() if k.startswith(tower_prefix)}
+                print(f"Found {len(checkpoint_model)} {tower_prefix}* keys in the OCTCube-IR checkpoint")
+                assert len(checkpoint_model) > 20, (
+                    f"Expected many '{tower_prefix}*' keys in the OCTCube-IR checkpoint but "
+                    f"found {len(checkpoint_model)}. Inspect the checkpoint prefixes with "
+                    "inspect_mm_octcube_ir_keys.py before running.")
+                if not is_3d_tower:
+                    for drop_k in ['head.weight', 'head.bias', 'fc_norm.weight', 'fc_norm.bias']:
+                        checkpoint_model.pop(drop_k, None)
             else:
                 checkpoint_model = checkpoint
             state_dict = model.state_dict()
