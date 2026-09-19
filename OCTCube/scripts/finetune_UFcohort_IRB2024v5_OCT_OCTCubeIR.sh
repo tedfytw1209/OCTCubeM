@@ -90,4 +90,5 @@ python main_finetune_downstream_UFcohort.py --nb_classes $Num_CLASS \
     --return_bal_acc \
     --not_print_logits \
     --save_model \
+    --wandb_tags OCT \
     ${ADDCMD}
