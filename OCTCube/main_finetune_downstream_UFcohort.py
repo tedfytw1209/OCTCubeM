@@ -1213,6 +1213,7 @@ def main(args):
 
             print("Load pre-trained checkpoint from: %s" % args.finetune)
             print("checkpoint keys: ", list(checkpoint.keys()))
+            loaded_octcubeir_joint_ckpt = False
             if 'model' in list(checkpoint.keys()):
                 checkpoint_model = checkpoint['model']
             # OCTCube-IR's jointly-pretrained checkpoint (mm_octcube_ir.pt): a saved
@@ -1223,6 +1224,7 @@ def main(args):
             # patient_dataset_type so this single-modality path can initialize
             # either tower from the same joint checkpoint.
             elif 'state_dict' in list(checkpoint.keys()):
+                loaded_octcubeir_joint_ckpt = True
                 checkpoint_model = checkpoint['state_dict']
                 checkpoint_model = {k.replace('module.', '', 1): v for k, v in checkpoint_model.items()}
                 is_3d_tower = args.patient_dataset_type.startswith('3D_st')
@@ -1265,10 +1267,18 @@ def main(args):
                     'aggregate_cls_norm.weight', 'aggregate_cls_norm.bias',
                     'head.weight', 'head.bias', 'fc_norm.weight', 'fc_norm.bias'}
                 elif args.patient_dataset_type == '3D_st_flash_attn_nodrop':
-                    print('Goin right way')
-                    assert set(msg.missing_keys) == {'fc_aggregate_cls.weight', 'fc_aggregate_cls.bias',
-                    'aggregate_cls_norm.weight', 'aggregate_cls_norm.bias',
-                    'head.weight', 'head.bias'}
+                    if loaded_octcubeir_joint_ckpt:
+                        # mm_octcube_ir.pt's visual tower was already jointly
+                        # pretrained with the aggregation layers, so
+                        # fc_aggregate_cls/aggregate_cls_norm load successfully
+                        # and only the task-specific head is missing (matches
+                        # _load_tower_from_state_dict in
+                        # main_finetune_downstream_UFcohort_OCTCubeIR.py).
+                        assert set(msg.missing_keys) == {'head.weight', 'head.bias'}
+                    else:
+                        assert set(msg.missing_keys) == {'fc_aggregate_cls.weight', 'fc_aggregate_cls.bias',
+                        'aggregate_cls_norm.weight', 'aggregate_cls_norm.bias',
+                        'head.weight', 'head.bias'}
                 elif args.patient_dataset_type == 'Center2D' or args.patient_dataset_type == 'Center2D_flash_attn' or args.patient_dataset_type == '2D' or args.patient_dataset_type == '2D_flash_attn':
                     assert set(msg.missing_keys) == {'head.weight', 'head.bias', 'fc_norm.weight', 'fc_norm.bias'}
                 elif args.patient_dataset_type == '3D_st' or args.patient_dataset_type == '3D_st_joint' or args.patient_dataset_type == '3D_st_flash_attn' or args.patient_dataset_type == '3D_st_joint_flash_attn':
