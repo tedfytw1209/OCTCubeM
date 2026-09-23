@@ -28,6 +28,7 @@ Eval_score=${5:-"AUC"}
 TASK_MODE=${6:-"binary_cls"}
 SUBSETNUM=${7:-0} # 0, 500, 1000
 ADDCMD=${8:-""}
+EXTRA_ARGS="${@:9}"  # extra passthrough args, e.g. --wandb_tags late_fusion
 ADDCMD="EVAL"
 
 # "Easy" dual eval for the OCTCube-IR ablation set: no joint dual training --
@@ -93,4 +94,5 @@ python main_finetune_downstream_UFcohort_dual.py --nb_classes $Num_CLASS \
     --new_subset_num $SUBSETNUM \
     --return_bal_acc \
     --not_print_logits \
-    --eval
+    --eval \
+    ${EXTRA_ARGS}

@@ -56,6 +56,6 @@ do
         continue
     fi
 
-    echo "sbatch $SCRIPT $DATASET $OCT_CKPT $FUNDUS_CKPT $NUM_CLASS $Eval_score $TASK_MODE $SUBSETNUM $ADDCMD"
-    sbatch $SCRIPT $DATASET $OCT_CKPT $FUNDUS_CKPT $NUM_CLASS $Eval_score $TASK_MODE $SUBSETNUM $ADDCMD
+    echo "sbatch $SCRIPT $DATASET $OCT_CKPT $FUNDUS_CKPT $NUM_CLASS $Eval_score $TASK_MODE $SUBSETNUM $ADDCMD --wandb_tags late_fusion"
+    sbatch $SCRIPT $DATASET $OCT_CKPT $FUNDUS_CKPT $NUM_CLASS $Eval_score $TASK_MODE $SUBSETNUM $ADDCMD --wandb_tags late_fusion
 done

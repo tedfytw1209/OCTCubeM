@@ -391,6 +391,8 @@ def get_args_parser():
                         help='path where to save, empty for no saving')
     parser.add_argument('--log_dir', default='./output_dir',
                         help='path where to tensorboard log')
+    parser.add_argument('--wandb_tags', default=None, nargs='+',
+                        help='tags to attach to the wandb run')
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
     parser.add_argument('--seed', default=0, type=int)
@@ -439,6 +441,7 @@ def main(args):
     wandb.init(
         project="OCTCubeM",
         name=wandb_task_name,
+        tags=args.wandb_tags,
         config=args,
         dir=os.path.join(args.log_dir,wandb_task_name),
     )
