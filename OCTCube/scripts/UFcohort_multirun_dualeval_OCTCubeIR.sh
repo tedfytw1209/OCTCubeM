@@ -35,12 +35,12 @@ ADDCMD=${4:-""}   # must match the ADDCMD used for the OCT-only/IR-only finetune
 data_type="IRB2024_v5"
 CKPT_ROOT=/orange/ruogu.fang/tienyuchang/OCTCube_results/outputs_ft_st
 
-DATASETS=(AMD_all_split Cataract_all_split DR_all_split Glaucoma_all_split DR_binary_all_split Glaucoma_binary_all_split)  # List of datasets
-CLASSES=(2 2 6 6 2 2)  # Number of classes for each dataset
-TASK_MODES=(binary_cls binary_cls multi_cls multi_cls binary_cls binary_cls)  # Task mode, can be changed as needed
-#DATASETS=(DR_filtered_all_split DR_fbinary_all_split Glaucoma_filtered_all_split Glaucoma_fbinary_all_split)
-#CLASSES=(5 2 4 2)  # Number of classes for each dataset
-#TASK_MODES=(multi_cls binary_cls multi_cls binary_cls)  # Task mode, can be changed as needed
+#DATASETS=(AMD_all_split Cataract_all_split DR_all_split Glaucoma_all_split DR_binary_all_split Glaucoma_binary_all_split)  # List of datasets
+#CLASSES=(2 2 6 6 2 2)  # Number of classes for each dataset
+#TASK_MODES=(binary_cls binary_cls multi_cls multi_cls binary_cls binary_cls)  # Task mode, can be changed as needed
+DATASETS=(DR_filtered_all_split DR_fbinary_all_split Glaucoma_filtered_all_split Glaucoma_fbinary_all_split)
+CLASSES=(5 2 4 2)  # Number of classes for each dataset
+TASK_MODES=(multi_cls binary_cls multi_cls binary_cls)  # Task mode, can be changed as needed
 
 for i in "${!DATASETS[@]}"
 do
